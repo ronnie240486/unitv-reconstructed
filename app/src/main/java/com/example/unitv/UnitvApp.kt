@@ -192,6 +192,7 @@ private fun DeviceIdentityScreen(vm: UnitvViewModel, onContinue: () -> Unit) {
                 Column(Modifier.padding(26.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("MAC / ID DO APARELHO", color = PrestigieGold, fontSize = 12.sp, letterSpacing = 2.sp)
                     Text(vm.deviceId, color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
+                    Text(vm.macAddress, color = TextMuted, fontSize = 13.sp, letterSpacing = 1.4.sp)
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Button(
                             onClick = {
@@ -208,7 +209,7 @@ private fun DeviceIdentityScreen(vm: UnitvViewModel, onContinue: () -> Unit) {
                         OutlinedButton(onClick = vm::refreshPlaylists) {
                             Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))
-                            Text("Atualizar listas")
+                            Text("Verificar e atualizar")
                         }
                     }
                 }
