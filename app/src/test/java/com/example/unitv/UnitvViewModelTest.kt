@@ -20,6 +20,15 @@ class UnitvViewModelTest {
     }
 
     @Test
+    fun highlightsIsSeparateFromHome() {
+        val viewModel = UnitvViewModel()
+        viewModel.selectCategory("Destaques")
+        assertEquals(AppScreen.HIGHLIGHTS, viewModel.currentScreen)
+        viewModel.selectCategory("Home")
+        assertEquals(AppScreen.HOME, viewModel.currentScreen)
+    }
+
+    @Test
     fun deviceIdentityAlwaysReturnsTwelveHexCharacters() {
         assertEquals("001122AABBCC", DeviceIdentity.normalize12("00:11:22:aa:bb:cc"))
         assertEquals("00:11:22:AA:BB:CC", DeviceIdentity.toMac("001122AABBCC"))

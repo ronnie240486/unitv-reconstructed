@@ -7,8 +7,9 @@ application-icon-320:'res/drawable/prestigie_icon.png'
 application-icon-480:'res/drawable/prestigie_icon.png'
 application-icon-640:'res/drawable/prestigie_icon.png'
 application-icon-65534:'res/drawable/prestigie_icon.png'
-47fef0334d1de571229e12be6cc9fa5b33e15a180a461ec4f645ca26e4582dc7  app/build/outputs/apk/debug/app-debug.apk
+b9f1db6db0ab23595d8c31ba84d08a25262f9cce5ee0e2835635d334c6489bbe  app/build/outputs/apk/debug/app-debug.apk
 Build: SUCCESS
 Testes: testDebugUnitTest concluído
-Catálogo: API Xtream + fallback M3U, canais, filmes e séries
-Layout: orientação adaptativa, cabeçalho rolável no celular, Home rolável
+Navegação: Home e Destaques separados
+Categorias: faixa real em Filmes e Séries
+Cabeçalho: botão Seja um membro removido

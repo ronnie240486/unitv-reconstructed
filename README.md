@@ -49,3 +49,9 @@ A integração remota está centralizada em `ProductConfig.api`, com base `https
 A versão `0.2.2-catalogo` carrega o conteúdo da lista ativa usando a API Xtream (`player_api.php`) quando a fonte fornece servidor, usuário e senha. Quando o servidor não expõe essa API, o cliente tenta a URL M3U8 principal retornada por `device/check` ou a URL da fonte. Os itens são classificados em **Canais**, **Filmes** e **Séries**, exibindo capas remotas quando disponíveis e um fallback visual quando a fonte não fornece imagem.
 
 A Home passou a mostrar seções roláveis com contagem de itens e botão de atualização. A tela Live usa os canais reais, Filmes e Séries usam o catálogo da fonte e a Busca consulta todos os itens carregados. O cabeçalho se reorganiza em duas linhas no celular, e a tela de ativação usa largura adaptativa e rolagem para não cortar os botões.
+
+## Home, Destaques e categorias
+
+A aba **Home** agora é uma página principal independente, com banner, atalhos para TV ao vivo e Listas, resumo de canais/filmes/séries e indicação da lista ativa. A aba **Destaques** possui uma tela separada, com seções próprias de canais, filmes e séries.
+
+Nas telas **Filmes** e **Séries**, a faixa superior apresenta as categorias reais encontradas na lista ativa, incluindo o botão **Todos**. O botão **Seja um membro** foi removido do cabeçalho em TV e celular.

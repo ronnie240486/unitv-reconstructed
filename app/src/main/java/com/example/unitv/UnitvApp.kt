@@ -300,7 +300,6 @@ private fun TopBar(vm: UnitvViewModel) {
                     Box(Modifier.size(8.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFF57DB73)))
                 }
                 LazyRow(contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    item { MembershipButton(vm) }
                     items(actions) { action -> HeaderIconButton(action.icon, action.label, action.action) }
                 }
             }
@@ -308,7 +307,6 @@ private fun TopBar(vm: UnitvViewModel) {
             Row(modifier = Modifier.fillMaxWidth().height(82.dp).padding(horizontal = 28.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                 BrandLogo(vm, 185.dp, 52.dp)
                 Spacer(Modifier.width(24.dp))
-                MembershipButton(vm)
                 Spacer(Modifier.weight(1f))
                 actions.forEach { action -> HeaderIconButton(action.icon, action.label, action.action) }
                 Spacer(Modifier.width(12.dp))
@@ -328,21 +326,6 @@ private fun BrandLogo(vm: UnitvViewModel, width: androidx.compose.ui.unit.Dp, he
         Image(painter = painterResource(R.drawable.prestigie_logo), contentDescription = vm.visualConfig.appName, modifier = Modifier.width(width).height(height), contentScale = ContentScale.Fit)
     } else {
         AsyncImage(model = vm.visualConfig.logoUrl, contentDescription = vm.visualConfig.appName, modifier = Modifier.width(width).height(height), contentScale = ContentScale.Fit)
-    }
-}
-
-@Composable
-private fun MembershipButton(vm: UnitvViewModel) {
-    Button(
-        onClick = { vm.openAccountScreen(AppScreen.PURCHASE) },
-        modifier = Modifier.height(42.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = Color(0xCC8C5215), contentColor = Color.White),
-        shape = RoundedCornerShape(24.dp),
-        contentPadding = PaddingValues(horizontal = 16.dp)
-    ) {
-        Icon(Icons.Default.Star, contentDescription = null, modifier = Modifier.size(18.dp), tint = PrestigieGold)
-        Spacer(Modifier.width(7.dp))
-        Text("Seja um membro", fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -389,6 +372,7 @@ private fun CategoryTabs(vm: UnitvViewModel) {
 private fun ScreenContent(vm: UnitvViewModel) {
     when (vm.currentScreen) {
         AppScreen.HOME -> HomeScreen(vm)
+        AppScreen.HIGHLIGHTS -> HighlightsScreen(vm)
         AppScreen.LIVE -> LiveScreen(vm)
         AppScreen.VOD -> CatalogScreen(vm, if (vm.selectedCategory.equals("Séries", true)) "Séries" else "Filmes", if (vm.selectedCategory.equals("Séries", true)) vm.catalog.series else vm.catalog.movies)
         AppScreen.SPORTS -> SportsScreen(vm)
@@ -416,13 +400,63 @@ private fun HomeScreen(vm: UnitvViewModel) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 28.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+        verticalArrangement = Arrangement.spacedBy(18.dp)
+    ) {
+        item {
+            Box(modifier = Modifier.fillMaxWidth().height(250.dp).clip(RoundedCornerShape(16.dp))) {
+                if (vm.visualConfig.bannerUrl.isBlank()) {
+                    Image(painter = painterResource(R.drawable.prestigie_catalog_style), contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                } else {
+                    AsyncImage(model = vm.visualConfig.bannerUrl, contentDescription = "Banner Prestigie", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                }
+                Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(listOf(Color(0xF016060A), Color(0x4416060A), Color(0xE616060A)))))
+                Column(Modifier.align(Alignment.CenterStart).padding(24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Bem-vindo ao ${vm.visualConfig.appName}", color = Color.White, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                    Text("Sua experiência de entretenimento em um só lugar", color = TextMuted)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ActionButton("TV ao vivo", Icons.Default.PlayArrow) { vm.selectCategory("Ao vivo") }
+                        ActionButton("Listas", Icons.Default.List, vm::openLists)
+                    }
+                }
+            }
+        }
+        item {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                SummaryCard("Canais", vm.catalog.live.size, Icons.Default.Wifi, Modifier.weight(1f)) { vm.selectCategory("Ao vivo") }
+                SummaryCard("Filmes", vm.catalog.movies.size, Icons.Default.PlayArrow, Modifier.weight(1f)) { vm.selectCategory("Filmes") }
+                SummaryCard("Séries", vm.catalog.series.size, Icons.Default.Event, Modifier.weight(1f)) { vm.selectCategory("Séries") }
+            }
+        }
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = WinePanel), shape = RoundedCornerShape(14.dp)) {
+                Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Lista ativa", color = PrestigieGold, fontSize = 12.sp, letterSpacing = 1.5.sp)
+                        Text(vm.selectedPlaylist?.name ?: "Nenhuma lista selecionada", color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text("Atualize o conteúdo sem sair da Home", color = TextMuted, fontSize = 12.sp)
+                    }
+                    ActionButton("Atualizar", Icons.Default.Refresh, vm::refreshCatalog)
+                }
+            }
+        }
+        item {
+            Text("Acesse pelo menu superior: Destaques, Filmes, Séries, Kids e Anime.", color = TextMuted, fontSize = 13.sp)
+        }
+    }
+}
+
+@Composable
+private fun HighlightsScreen(vm: UnitvViewModel) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 28.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Conteúdo da sua lista", color = Color.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                    Text("Canais, filmes e séries carregados do servidor", color = TextMuted, fontSize = 14.sp)
+                Column(Modifier.weight(1f)) {
+                    Text("Destaques", color = Color.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Text("Conteúdos selecionados da sua lista", color = TextMuted)
                 }
                 OutlinedButton(onClick = vm::refreshCatalog) {
                     Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -431,26 +465,27 @@ private fun HomeScreen(vm: UnitvViewModel) {
                 }
             }
         }
-        if (vm.catalogLoading) {
-            item { Text("Carregando conteúdo da lista…", color = TextMuted) }
-        }
-        vm.catalogError?.let { error ->
-            item { Text(error, color = Color(0xFFFFB4AB)) }
-        }
-        if (vm.catalog.total == 0 && !vm.catalogLoading) {
-            item {
-                Card(colors = CardDefaults.cardColors(containerColor = WinePanel), shape = RoundedCornerShape(14.dp)) {
-                    Column(Modifier.fillMaxWidth().padding(22.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("A lista foi encontrada, mas o conteúdo não respondeu.", color = Color.White, fontWeight = FontWeight.Bold)
-                        Text("Toque em Atualizar ou selecione outra lista. Se continuar vazio, o servidor pode estar bloqueando o acesso ao catálogo.", color = TextMuted)
-                        ActionButton("Verificar novamente", Icons.Default.Refresh, vm::refreshCatalog)
-                    }
-                }
+        item { CatalogSection("Canais em destaque", vm.catalog.live.take(12), vm) }
+        item { CatalogSection("Filmes em destaque", vm.catalog.movies.take(12), vm) }
+        item { CatalogSection("Séries em destaque", vm.catalog.series.take(12), vm) }
+    }
+}
+
+@Composable
+private fun SummaryCard(title: String, count: Int, icon: ImageVector, modifier: Modifier, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    Card(
+        modifier = modifier.onFocusChanged { focused = it.isFocused }.focusable().clickable(onClick = onClick).border(if (focused) 2.dp else 1.dp, if (focused) FocusBlue else Color(0x446D3942), RoundedCornerShape(12.dp)),
+        colors = CardDefaults.cardColors(containerColor = if (focused) Color(0xCC8C5215) else WinePanel),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, contentDescription = null, tint = PrestigieGold, modifier = Modifier.size(25.dp))
+            Spacer(Modifier.width(10.dp))
+            Column {
+                Text(title, color = TextMuted, fontSize = 12.sp)
+                Text(count.toString(), color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             }
-        } else {
-            item { CatalogSection("Canais", vm.catalog.live, vm) }
-            item { CatalogSection("Filmes", vm.catalog.movies, vm) }
-            item { CatalogSection("Séries", vm.catalog.series, vm) }
         }
     }
 }
@@ -511,18 +546,35 @@ private fun CatalogCard(item: CatalogItem, vm: UnitvViewModel) {
 
 @Composable
 private fun CatalogScreen(vm: UnitvViewModel, title: String, contentItems: List<CatalogItem>) {
+    var activeCategory by remember(title) { mutableStateOf("Todos") }
+    val categories = listOf("Todos") + contentItems.map { it.category }.filter { it.isNotBlank() }.distinct().take(30)
+    val filteredItems = if (activeCategory == "Todos") contentItems else contentItems.filter { it.category == activeCategory }
     ScreenFrame(title, "Conteúdo carregado da lista ativa", vm::backHome) {
-        if (contentItems.isEmpty()) {
-            Text("Nenhum conteúdo disponível nesta categoria.", color = TextMuted)
-        } else {
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 150.dp),
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 26.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                gridItems(contentItems) { item -> CatalogCard(item, vm) }
+        Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(end = 12.dp)) {
+                items(categories) { category ->
+                    val selected = category == activeCategory
+                    OutlinedButton(
+                        onClick = { activeCategory = category },
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = if (selected) PrestigieGold else Color.Transparent,
+                            contentColor = if (selected) WineDark else Color.White
+                        )
+                    ) { Text(category, maxLines = 1) }
+                }
+            }
+            if (filteredItems.isEmpty()) {
+                Text("Nenhum conteúdo disponível nesta categoria.", color = TextMuted)
+            } else {
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 150.dp),
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    contentPadding = PaddingValues(bottom = 26.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    gridItems(filteredItems) { item -> CatalogCard(item, vm) }
+                }
             }
         }
     }

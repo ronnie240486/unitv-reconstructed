@@ -265,7 +265,8 @@ class UnitvViewModel(
             "Explorar" -> AppScreen.EXPLORE
             "Ao vivo" -> AppScreen.LIVE
             "Filmes", "Séries" -> AppScreen.VOD
-            "Home", "Destaques" -> AppScreen.HOME
+            "Destaques" -> AppScreen.HIGHLIGHTS
+            "Home" -> AppScreen.HOME
             else -> AppScreen.HOME
         }
     }

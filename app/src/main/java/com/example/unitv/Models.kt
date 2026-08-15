@@ -11,6 +11,7 @@ enum class AppSection(val label: String) {
 
 enum class AppScreen {
     HOME,
+    HIGHLIGHTS,
     LIVE,
     VOD,
     SPORTS,
