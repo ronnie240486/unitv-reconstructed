@@ -20,6 +20,8 @@ class UnitvViewModel(
         private set
     var selectedVod by mutableStateOf<VodItem?>(null)
         private set
+    var selectedCategory by mutableStateOf("Destaques")
+        private set
     var searchQuery by mutableStateOf("")
     var session by mutableStateOf(UserSession())
         private set
@@ -48,6 +50,18 @@ class UnitvViewModel(
         currentScreen = AppScreen.VOD_DETAILS
     }
 
+    fun selectCategory(category: String) {
+        selectedCategory = category
+        currentScreen = when (category) {
+            "Kids" -> AppScreen.KIDS
+            "Anime" -> AppScreen.ANIME
+            "Explorar" -> AppScreen.EXPLORE
+            "Ao vivo" -> AppScreen.LIVE
+            "Filmes", "Séries", "Gratuito", "Destaques" -> AppScreen.HOME
+            else -> AppScreen.HOME
+        }
+    }
+
     fun openSearch() {
         searchQuery = ""
         currentScreen = AppScreen.SEARCH
@@ -70,6 +84,27 @@ class UnitvViewModel(
     fun logout() {
         session = UserSession()
         notice = "Sessão encerrada."
+        currentScreen = AppScreen.HOME
+        selectedSection = AppSection.HOME
+    }
+
+    fun openNotifications() {
+        currentScreen = AppScreen.NOTIFICATIONS
+    }
+
+    fun openHistory() {
+        currentScreen = AppScreen.HISTORY
+    }
+
+    fun openFilters() {
+        currentScreen = AppScreen.FILTERS
+    }
+
+    fun openHelp() {
+        currentScreen = AppScreen.HELP
+    }
+
+    fun backHome() {
         currentScreen = AppScreen.HOME
         selectedSection = AppSection.HOME
     }

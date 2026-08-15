@@ -11,14 +11,14 @@ import androidx.compose.ui.text.font.FontWeight
 private val UnitvDarkColors = darkColorScheme(
     primary = Color(0xFFE6B85C),
     onPrimary = Color(0xFF241A08),
-    secondary = Color(0xFF9CC7FF),
-    onSecondary = Color(0xFF0B1C30),
-    background = Color(0xFF0A0C12),
-    onBackground = Color(0xFFF3F4F8),
-    surface = Color(0xFF141821),
-    onSurface = Color(0xFFF3F4F8),
-    surfaceVariant = Color(0xFF252B38),
-    onSurfaceVariant = Color(0xFFBEC5D2),
+    secondary = Color(0xFFE6A0A8),
+    onSecondary = Color(0xFF351018),
+    background = Color(0xFF16060A),
+    onBackground = Color(0xFFF7EEF0),
+    surface = Color(0xFF2A0B12),
+    onSurface = Color(0xFFF7EEF0),
+    surfaceVariant = Color(0xFF4A1822),
+    onSurfaceVariant = Color(0xFFD9C2C6),
     error = Color(0xFFFFB4AB)
 )
 

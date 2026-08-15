@@ -7,8 +7,7 @@ application-icon-320:'res/drawable/prestigie_icon.png'
 application-icon-480:'res/drawable/prestigie_icon.png'
 application-icon-640:'res/drawable/prestigie_icon.png'
 application-icon-65534:'res/drawable/prestigie_icon.png'
-18f3a996579909f9017083a557288f97056864b2ac5b0ab4440128ce7f4694e5  app/build/outputs/apk/debug/app-debug.apk
-
-Build reproduzido com `./gradlew --no-daemon clean testDebugUnitTest assembleDebug`.
-Resultado: BUILD SUCCESSFUL.
-Marca: Prestigie.
+5f65546470c9914ae9a6b833dc48bb8f766ca963bb0dec895a32827919aa0f99  app/build/outputs/apk/debug/app-debug.apk
+Build: SUCCESS
+Testes: testDebugUnitTest concluído
+Interface: top bar, tabs, grade editorial, foco D-pad, Splash, Live, VOD, Kids, Anime, Explorar, Perfil e estados implementados
