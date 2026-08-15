@@ -1,4 +1,4 @@
-# UniTV Reconstruído
+# Prestigie
 
 Este repositório contém uma **reimplementação limpa e demonstrativa** da superfície funcional observável em `unitv_RS-NPWN(4.18).apk`. O projeto não tenta recuperar nem redistribuir o código-fonte original, os payloads nativos protegidos, a assinatura do APK, credenciais, endpoints privados ou ativos licenciados.
 
@@ -6,7 +6,7 @@ Este repositório contém uma **reimplementação limpa e demonstrativa** da sup
 
 ## O que foi implementado
 
-A base Android nativa em Kotlin/Jetpack Compose implementa navegação em paisagem com as áreas observadas no manifesto: **Início**, **Ao vivo**, **Filmes e séries**, **Esportes** e **Perfil**. Também inclui telas demonstrativas de busca, detalhes VOD, login local, planos, cupons, segurança da conta e configurações.
+A base Android nativa em Kotlin/Jetpack Compose implementa a marca **Prestigie** e navegação em paisagem com as áreas observadas no manifesto: **Início**, **Ao vivo**, **Filmes e séries**, **Esportes** e **Perfil**. Também inclui telas demonstrativas de busca, detalhes VOD, login local, planos, cupons, segurança da conta e configurações.
 
 A camada de dados usa `DemoContentRepository`, com modelos para canais, programação, VOD, partidas, planos, cupons e sessão. As interfaces `ContentRepository`, `PlayerGateway` e `ApiConfig` permitem conectar posteriormente um backend e um player legítimos, sem reutilizar os serviços do APK analisado. `DnsConfig` aceita até cinco servidores DNS para futuras integrações autorizadas.
 
@@ -21,16 +21,18 @@ O projeto não contém autenticação real, checkout, reprodução de streams, p
 | `app/src/main/java/com/example/unitv/Models.kt` | Modelos de domínio e estados de tela |
 | `app/src/main/java/com/example/unitv/DemoRepository.kt` | Dados locais e contratos de integração |
 | `app/src/main/java/com/example/unitv/UnitvViewModel.kt` | Estado e ações da aplicação |
-| `app/src/main/java/com/example/unitv/UnitvApp.kt` | UI Compose e navegação |
+| `app/src/main/java/com/example/unitv/UnitvApp.kt` | UI Compose, logo Prestigie e navegação |
 | `app/src/main/java/com/example/unitv/UnitvTheme.kt` | Tema visual escuro para TV |
-| `docs/` | Relatório da análise e decisões de reconstrução |
+| `app/src/main/res/drawable/prestigie_icon.png` | Ícone novo do launcher |
+| `app/src/main/res/drawable/prestigie_logo.png` | Logo horizontal Prestigie |
+| `docs/` | Relatório da análise, reconstrução e validação |
 | `analysis/` | Evidências textuais sanitizadas da análise estática |
 
 ## Compilação
 
-Abra o diretório no Android Studio recente com SDK Android 35. O módulo usa Gradle Kotlin DSL, Android Gradle Plugin 8.6.1, Kotlin 2.0.21, minSdk 26 e targetSdk 35. Também é possível executar `./gradlew :app:assembleDebug` quando o wrapper do Gradle estiver disponível no ambiente.
+Abra o diretório no Android Studio recente com SDK Android 35. O módulo usa Gradle Kotlin DSL, Android Gradle Plugin 8.6.1, Kotlin 2.0.21, minSdk 26 e targetSdk 35. Também é possível executar `./gradlew :app:assembleDebug` no ambiente com o SDK Android configurado.
 
-O pacote de saída terá o application ID `com.example.unitv.reconstructed`, deliberadamente diferente do APK analisado.
+O pacote de saída terá o application ID `com.example.prestigie.reconstructed`, deliberadamente diferente do APK analisado.
 
 ## Nota de autorização
 

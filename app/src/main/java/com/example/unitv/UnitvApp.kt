@@ -1,5 +1,6 @@
 package com.example.unitv
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -40,6 +41,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -70,7 +73,7 @@ fun UnitvApp(vm: UnitvViewModel = viewModel()) {
     vm.notice?.let { message ->
         AlertDialog(
             onDismissRequest = vm::dismissNotice,
-            title = { Text("UniTV Reconstruído") },
+            title = { Text("Prestigie") },
             text = { Text(message) },
             confirmButton = {
                 TextButton(onClick = vm::dismissNotice) { Text("OK") }
@@ -89,8 +92,13 @@ private fun SideRail(vm: UnitvViewModel) {
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text("UniTV", color = Gold, fontSize = 28.sp, fontWeight = FontWeight.Bold)
-        Text("RECONSTRUÍDO", color = Muted, fontSize = 10.sp, letterSpacing = 1.6.sp)
+        Image(
+            painter = painterResource(R.drawable.prestigie_logo),
+            contentDescription = "Prestigie",
+            modifier = Modifier.fillMaxWidth().height(64.dp),
+            contentScale = ContentScale.Fit
+        )
+        Text("ENTRETENIMENTO COM PRESTÍGIO", color = Muted, fontSize = 9.sp, letterSpacing = 1.1.sp)
         Spacer(Modifier.height(18.dp))
         AppSection.entries.forEach { section ->
             val active = vm.selectedSection == section && vm.currentScreen in setOf(

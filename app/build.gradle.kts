@@ -9,11 +9,11 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.unitv.reconstructed"
+        applicationId = "com.example.prestigie.reconstructed"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
-        versionName = "0.1.0-reconstruction"
+        versionName = "0.2.0-prestigie"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

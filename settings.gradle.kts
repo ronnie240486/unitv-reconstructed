@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "unitv-reconstructed"
+rootProject.name = "prestigie"
 include(":app")

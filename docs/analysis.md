@@ -27,7 +27,7 @@ O arquivo também contém `assets/IJMDal.Data`, `assets/af.bin`, `assets/ijiami.
 
 ## Decisão de reconstrução
 
-A implementação nova reproduz a arquitetura de navegação e os contratos de domínio com dados locais fictícios. A UI usa Compose e mantém o application ID próprio `com.example.unitv.reconstructed`. Backend, autenticação, DNS, player, pagamentos, push e telemetria aparecem apenas como interfaces ou pontos de extensão.
+A implementação Prestigie reproduz a arquitetura de navegação e os contratos de domínio com dados locais fictícios. A UI usa Compose e mantém o application ID próprio `com.example.prestigie.reconstructed`. Backend, autenticação, DNS, player, pagamentos, push e telemetria aparecem apenas como interfaces ou pontos de extensão.
 
 ## Limitações
 
