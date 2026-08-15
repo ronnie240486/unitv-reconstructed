@@ -81,6 +81,7 @@ data class Playlist(
     val username: String = "",
     val password: String = "",
     val type: String = "",
+    val directM3uUrl: String = "",
     val number: Int = 1,
     val isActive: Boolean = false
 )

@@ -12,8 +12,8 @@ android {
         applicationId = "com.example.prestigie.reconstructed"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.2.1-rencia-mac"
+        versionCode = 3
+        versionName = "0.2.2-catalogo"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

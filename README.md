@@ -43,3 +43,9 @@ A análise foi limitada a metadados, manifesto, recursos e comportamento observ�
 Após a apresentação Prestigie, o aplicativo exibe o identificador disponível no aparelho em 12 caracteres hexadecimais e oferece o botão **Copiar**. O valor pode ser cadastrado no backend. A aba **Home** substitui a antiga aba Grátis, e o botão de conta do cabeçalho foi substituído por **Listas**, onde o usuário pode escolher entre uma e quatro playlists.
 
 A integração remota está centralizada em `ProductConfig.api`, com base `https://renciaapp.manus.space`. O APK valida o aparelho em `/api/device/check`, carrega fontes em `/api/guim.php`, usa até quatro itens de `data[]`, envia heartbeat a cada 60 segundos, consulta avisos/comandos e aplica a configuração visual opcional. O botão Copiar mostra 12 caracteres na tela, mas copia o MAC no formato `AA:BB:CC:DD:EE:FF`. Para testes locais, habilite explicitamente `useDemoData` em `ProductConfig`.
+
+## Catálogo real e layout responsivo
+
+A versão `0.2.2-catalogo` carrega o conteúdo da lista ativa usando a API Xtream (`player_api.php`) quando a fonte fornece servidor, usuário e senha. Quando o servidor não expõe essa API, o cliente tenta a URL M3U8 principal retornada por `device/check` ou a URL da fonte. Os itens são classificados em **Canais**, **Filmes** e **Séries**, exibindo capas remotas quando disponíveis e um fallback visual quando a fonte não fornece imagem.
+
+A Home passou a mostrar seções roláveis com contagem de itens e botão de atualização. A tela Live usa os canais reais, Filmes e Séries usam o catálogo da fonte e a Busca consulta todos os itens carregados. O cabeçalho se reorganiza em duas linhas no celular, e a tela de ativação usa largura adaptativa e rolagem para não cortar os botões.

@@ -22,6 +22,7 @@ class UnitvViewModel(
     val coupons: List<Coupon> = repository.coupons()
 
     private val backend = if (apiConfig.useDemoData) null else RenciaBackend(apiConfig)
+    private val catalogClient = CatalogClient()
     private var heartbeatJob: Job? = null
     private val seenNotificationIds = mutableSetOf<Long>()
 
@@ -30,6 +31,8 @@ class UnitvViewModel(
     var selectedSection by mutableStateOf(AppSection.HOME)
         private set
     var selectedVod by mutableStateOf<VodItem?>(null)
+        private set
+    var selectedCatalogItem by mutableStateOf<CatalogItem?>(null)
         private set
     var selectedCategory by mutableStateOf("Home")
         private set
@@ -47,6 +50,12 @@ class UnitvViewModel(
         private set
     var playlistsError by mutableStateOf<String?>(null)
         private set
+    var catalog by mutableStateOf(CatalogSnapshot())
+        private set
+    var catalogLoading by mutableStateOf(false)
+        private set
+    var catalogError by mutableStateOf<String?>(null)
+        private set
     var accessLoading by mutableStateOf(false)
         private set
     var backendNotifications by mutableStateOf<List<BackendNotification>>(emptyList())
@@ -61,6 +70,15 @@ class UnitvViewModel(
         get() = if (searchQuery.isBlank()) vodItems else vodItems.filter {
             it.title.contains(searchQuery, ignoreCase = true) ||
                 it.subtitle.contains(searchQuery, ignoreCase = true)
+        }
+
+    val allCatalog: List<CatalogItem>
+        get() = catalog.live + catalog.movies + catalog.series
+
+    val filteredCatalog: List<CatalogItem>
+        get() = if (searchQuery.isBlank()) allCatalog else allCatalog.filter {
+            it.title.contains(searchQuery, ignoreCase = true) ||
+                it.category.contains(searchQuery, ignoreCase = true)
         }
 
     val selectedPlaylist: Playlist?
@@ -91,6 +109,11 @@ class UnitvViewModel(
                 if (backend == null) {
                     playlists = DemoPlaylistRepository().fetchByDeviceId(deviceId)
                     selectFirstPlaylistIfNeeded()
+                    catalog = CatalogSnapshot(
+                        live = channels.map { CatalogItem(it.id, it.name, it.category, CatalogKind.LIVE) },
+                        movies = vodItems.map { CatalogItem(it.id, it.title, it.category, CatalogKind.MOVIE) },
+                        series = vodItems.map { CatalogItem(it.id, it.title, "Séries", CatalogKind.SERIES) }
+                    )
                 } else {
                     val access = backend.checkDevice(macAddress)
                     deviceAccess = access
@@ -101,8 +124,12 @@ class UnitvViewModel(
                         notice = "Este aparelho não está liberado para reproduzir conteúdo."
                     } else {
                         visualConfig = runCatching { backend.fetchVisualConfig(macAddress) }.getOrDefault(VisualConfig())
-                        playlists = backend.fetchSources(macAddress)
+                        val sources = backend.fetchSources(macAddress)
+                        playlists = sources.mapIndexed { index, playlist ->
+                            playlist.copy(directM3uUrl = if (index == 0) access.urlM3u8 else playlist.directM3uUrl)
+                        }
                         selectFirstPlaylistIfNeeded()
+                        loadSelectedCatalog()
                         backend.heartbeat(macAddress)
                         syncNotificationsAndCommands()
                     }
@@ -183,10 +210,31 @@ class UnitvViewModel(
         }
     }
 
+    private fun loadSelectedCatalog() {
+        val playlist = selectedPlaylist ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            catalogLoading = true
+            catalogError = null
+            try {
+                catalog = catalogClient.load(playlist)
+                if (catalog.total == 0) catalogError = "A lista respondeu sem canais, filmes ou séries."
+            } catch (_: Exception) {
+                catalogError = "Não foi possível carregar o conteúdo da lista."
+            } finally {
+                catalogLoading = false
+            }
+        }
+    }
+
+    fun refreshCatalog() {
+        loadSelectedCatalog()
+    }
+
     fun selectPlaylist(playlist: Playlist) {
         selectedPlaylistId = playlist.id
         playlists = playlists.map { it.copy(isActive = it.id == playlist.id) }
         notice = "Lista selecionada: ${playlist.name}"
+        loadSelectedCatalog()
     }
 
     fun openLists() { currentScreen = AppScreen.LISTS }
@@ -204,6 +252,11 @@ class UnitvViewModel(
 
     fun openVod(item: VodItem) { selectedVod = item; currentScreen = AppScreen.VOD_DETAILS }
 
+    fun openCatalogItem(item: CatalogItem) {
+        selectedCatalogItem = item
+        notice = if (item.streamUrl.isBlank()) "${item.title} selecionado." else "${item.title} selecionado. O player pode abrir a URL da lista autorizada."
+    }
+
     fun selectCategory(category: String) {
         selectedCategory = category
         currentScreen = when (category) {
@@ -211,7 +264,8 @@ class UnitvViewModel(
             "Anime" -> AppScreen.ANIME
             "Explorar" -> AppScreen.EXPLORE
             "Ao vivo" -> AppScreen.LIVE
-            "Filmes", "Séries", "Home", "Destaques" -> AppScreen.HOME
+            "Filmes", "Séries" -> AppScreen.VOD
+            "Home", "Destaques" -> AppScreen.HOME
             else -> AppScreen.HOME
         }
     }

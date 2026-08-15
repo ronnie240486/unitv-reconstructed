@@ -1,4 +1,4 @@
-package: name='com.example.prestigie.reconstructed' versionCode='2' versionName='0.2.1-rencia-mac' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
+package: name='com.example.prestigie.reconstructed' versionCode='3' versionName='0.2.2-catalogo' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
 application-label:'Prestigie'
 application-icon-120:'res/drawable/prestigie_icon.png'
 application-icon-160:'res/drawable/prestigie_icon.png'
@@ -7,7 +7,8 @@ application-icon-320:'res/drawable/prestigie_icon.png'
 application-icon-480:'res/drawable/prestigie_icon.png'
 application-icon-640:'res/drawable/prestigie_icon.png'
 application-icon-65534:'res/drawable/prestigie_icon.png'
-33d84fea88b2c49b5d869be1551ac9c357dc857bba17d8ba29c418b6519a3fab  app/build/outputs/apk/debug/app-debug.apk
+47fef0334d1de571229e12be6cc9fa5b33e15a180a461ec4f645ca26e4582dc7  app/build/outputs/apk/debug/app-debug.apk
 Build: SUCCESS
 Testes: testDebugUnitTest concluído
-Fluxo: allowed=true + data com fonte válida libera a Home automaticamente
+Catálogo: API Xtream + fallback M3U, canais, filmes e séries
+Layout: orientação adaptativa, cabeçalho rolável no celular, Home rolável
