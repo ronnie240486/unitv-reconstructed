@@ -1,0 +1,19 @@
+*.apk
+*.aab
+*.jks
+*.keystore
+.gradle/
+.idea/
+local.properties
+build/
+*/build/
+.cxx/
+.externalNativeBuild/
+.DS_Store
+Thumbs.db
+
+# Evidências locais de engenharia reversa não publicáveis por padrão.
+analysis/raw-apk/
+analysis/unpacked/
+analysis/decoded/
+analysis/jadx/
