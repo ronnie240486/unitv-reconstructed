@@ -22,6 +22,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -112,6 +114,13 @@ fun UnitvApp(vm: UnitvViewModel = viewModel()) {
     LaunchedEffect(context) {
         vm.updateDeviceId(DeviceIdentity.read12(context))
     }
+    LaunchedEffect(vm.deviceAccess?.allowed, vm.playlists) {
+        if ((vm.deviceAccess?.allowed == true || ProductConfig.api.useDemoData) && vm.playlists.isNotEmpty()) {
+            delay(450)
+            showDeviceSetup = false
+            vm.backHome()
+        }
+    }
 
     Surface(modifier = Modifier.fillMaxSize(), color = WineDark) {
         when {
@@ -176,7 +185,7 @@ private fun DeviceIdentityScreen(vm: UnitvViewModel, onContinue: () -> Unit) {
         )
         Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xDD16060A), Color(0xF916060A)))))
         Column(
-            modifier = Modifier.align(Alignment.Center).width(620.dp),
+            modifier = Modifier.align(Alignment.Center).width(620.dp).verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
