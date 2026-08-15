@@ -3,6 +3,7 @@ package com.example.unitv
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.view.ViewGroup
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -75,6 +76,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -90,6 +92,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -97,6 +100,11 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.delay
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.common.MediaItem
+import androidx.media3.ui.PlayerView
 
 private val PrestigieGold = Color(0xFFE6B85C)
 private val Wine = Color(0xFF47090E)
@@ -344,17 +352,18 @@ private fun HeaderIconButton(icon: ImageVector, label: String, onClick: () -> Un
 
 @Composable
 private fun CategoryTabs(vm: UnitvViewModel) {
-    val tabs = listOf("Home", "Destaques", "Filmes", "Séries", "Kids", "Anime", "Explorar")
-    Row(
-        modifier = Modifier.fillMaxWidth().height(68.dp).background(Color(0xB516060A)).padding(horizontal = 56.dp),
-        horizontalArrangement = Arrangement.spacedBy(42.dp),
+    val tabs = listOf("Home", "Destaques", "Canais", "Filmes", "Séries", "Kids", "Anime", "Explorar")
+    LazyRow(
+        modifier = Modifier.fillMaxWidth().height(68.dp).background(Color(0xB516060A)),
+        contentPadding = PaddingValues(horizontal = 18.dp),
+        horizontalArrangement = Arrangement.spacedBy(18.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        tabs.forEach { tab ->
+        items(tabs) { tab ->
             val selected = vm.selectedCategory.equals(tab, ignoreCase = true)
             TextButton(onClick = { vm.selectCategory(tab) }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(tab.uppercase(), color = if (selected) Color.White else TextMuted, fontSize = 17.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
+                    Text(tab.uppercase(), color = if (selected) Color.White else TextMuted, fontSize = 16.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
                     Spacer(Modifier.height(6.dp))
                     Box(Modifier.width(if (selected) 52.dp else 0.dp).height(3.dp).clip(RoundedCornerShape(3.dp)).background(PrestigieGold))
                 }
@@ -369,6 +378,8 @@ private fun ScreenContent(vm: UnitvViewModel) {
         AppScreen.HOME -> HomeScreen(vm)
         AppScreen.HIGHLIGHTS -> HighlightsScreen(vm)
         AppScreen.LIVE -> LiveScreen(vm)
+        AppScreen.PLAYER -> PlayerScreen(vm)
+        AppScreen.SERIES_EPISODES -> SeriesEpisodesScreen(vm)
         AppScreen.VOD -> CatalogScreen(vm, if (vm.selectedCategory.equals("Séries", true)) "Séries" else "Filmes", if (vm.selectedCategory.equals("Séries", true)) vm.catalog.series else vm.catalog.movies)
         AppScreen.SPORTS -> SportsScreen(vm)
         AppScreen.PROFILE -> ProfileScreen(vm)
@@ -626,19 +637,100 @@ private fun PlaylistScreen(vm: UnitvViewModel) {
 
 @Composable
 private fun LiveScreen(vm: UnitvViewModel) {
-    ScreenFrame("TV ao vivo", "Canais carregados da lista ativa", vm::backHome) {
-        val liveItems = vm.catalog.live
-        if (liveItems.isEmpty()) {
-            Text("Nenhum canal foi encontrado na lista ativa.", color = TextMuted)
-        } else {
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 220.dp),
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 24.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                gridItems(liveItems) { item -> CatalogCard(item, vm) }
+    val liveItems = vm.catalog.live
+    var activeCategory by remember(liveItems) { mutableStateOf("Todos") }
+    val categories = listOf("Todos") + liveItems.map { it.category }.filter { it.isNotBlank() }.distinct().take(40)
+    val filteredItems = if (activeCategory == "Todos") liveItems else liveItems.filter { it.category == activeCategory }
+    ScreenFrame("Canais", "Todos os canais da lista ativa", vm::backHome) {
+        Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(end = 12.dp)) {
+                items(categories) { category ->
+                    val selected = category == activeCategory
+                    OutlinedButton(
+                        onClick = { activeCategory = category },
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = if (selected) PrestigieGold else Color.Transparent,
+                            contentColor = if (selected) WineDark else Color.White
+                        )
+                    ) { Text(category, maxLines = 1) }
+                }
+            }
+            if (filteredItems.isEmpty()) {
+                Text("Nenhum canal foi encontrado nesta categoria.", color = TextMuted)
+            } else {
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 220.dp),
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    contentPadding = PaddingValues(bottom = 24.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    gridItems(filteredItems) { item -> CatalogCard(item, vm) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlayerScreen(vm: UnitvViewModel) {
+    val context = LocalContext.current
+    var playbackError by remember(vm.playingUrl) { mutableStateOf<String?>(null) }
+    val player = remember(vm.playingUrl) {
+        ExoPlayer.Builder(context).build().apply {
+            setMediaItem(MediaItem.fromUri(vm.playingUrl))
+            playWhenReady = true
+            addListener(object : Player.Listener {
+                override fun onPlayerError(error: PlaybackException) {
+                    playbackError = "Não foi possível reproduzir este conteúdo. Verifique a URL ou o acesso do servidor."
+                }
+            })
+            prepare()
+        }
+    }
+    DisposableEffect(player) {
+        onDispose { player.release() }
+    }
+    ScreenFrame(vm.playingTitle.ifBlank { "Reprodução" }, "Player Prestigie", vm::closePlayer) {
+        Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Box(modifier = Modifier.fillMaxWidth().weight(1f).background(Color.Black), contentAlignment = Alignment.Center) {
+                AndroidView(
+                    factory = { ctx ->
+                        PlayerView(ctx).apply {
+                            this.player = player
+                            useController = true
+                            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                        }
+                    },
+                    update = { it.player = player },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+            playbackError?.let { Text(it, color = Color(0xFFFFB4AB)) }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ActionButton("Voltar", Icons.Default.ArrowBack, vm::closePlayer)
+                ActionButton("Tentar novamente", Icons.Default.Refresh) { player.prepare(); player.playWhenReady = true }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SeriesEpisodesScreen(vm: UnitvViewModel) {
+    val series = vm.selectedCatalogItem
+    ScreenFrame(series?.title ?: "Série", "Temporadas e episódios", vm::backHome) {
+        when {
+            vm.episodesLoading -> Text("Carregando episódios…", color = TextMuted)
+            vm.episodesError != null && vm.seriesEpisodes.isEmpty() -> Text(vm.episodesError.orEmpty(), color = Color(0xFFFFB4AB))
+            vm.seriesEpisodes.isEmpty() -> Text("Nenhum episódio disponível.", color = TextMuted)
+            else -> LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                items(vm.seriesEpisodes) { episode ->
+                    FocusRow(
+                        title = "T${episode.season} · E${episode.episode} · ${episode.title}",
+                        subtitle = "Assistir episódio",
+                        icon = Icons.Default.PlayArrow
+                    ) { vm.openEpisode(episode) }
+                }
             }
         }
     }
@@ -707,7 +799,7 @@ private fun InfoListScreen(title: String, subtitle: String, icon: ImageVector, b
 private fun FilterScreen(vm: UnitvViewModel) {
     ScreenFrame("Filtros", "Refine sua busca", vm::backHome) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            listOf("Filmes", "Séries", "Kids", "Anime", "Esportes").forEach { label ->
+            listOf("Canais", "Filmes", "Séries", "Kids", "Anime", "Esportes").forEach { label ->
                 FocusRow(label, "Selecionar categoria", Icons.Default.FilterList) { vm.selectCategory(label) }
             }
         }

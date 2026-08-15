@@ -25,6 +25,7 @@ class UnitvViewModel(
     private val catalogClient = CatalogClient()
     private var heartbeatJob: Job? = null
     private var catalogJob: Job? = null
+    private var episodesJob: Job? = null
     private val seenNotificationIds = mutableSetOf<Long>()
 
     var currentScreen by mutableStateOf(AppScreen.HOME)
@@ -34,6 +35,16 @@ class UnitvViewModel(
     var selectedVod by mutableStateOf<VodItem?>(null)
         private set
     var selectedCatalogItem by mutableStateOf<CatalogItem?>(null)
+        private set
+    var playingUrl by mutableStateOf("")
+        private set
+    var playingTitle by mutableStateOf("")
+        private set
+    var seriesEpisodes by mutableStateOf<List<SeriesEpisode>>(emptyList())
+        private set
+    var episodesLoading by mutableStateOf(false)
+        private set
+    var episodesError by mutableStateOf<String?>(null)
         private set
     var selectedCategory by mutableStateOf("Home")
         private set
@@ -257,7 +268,51 @@ class UnitvViewModel(
 
     fun openCatalogItem(item: CatalogItem) {
         selectedCatalogItem = item
-        notice = if (item.streamUrl.isBlank()) "${item.title} selecionado." else "${item.title} selecionado. O player pode abrir a URL da lista autorizada."
+        when {
+            item.kind == CatalogKind.SERIES && selectedPlaylist?.username?.isNotBlank() == true -> {
+                seriesEpisodes = emptyList()
+                episodesError = null
+                currentScreen = AppScreen.SERIES_EPISODES
+                loadSeriesEpisodes(item)
+            }
+            item.streamUrl.isNotBlank() -> openPlayer(item.title, item.streamUrl)
+            else -> showNotice("Este conteúdo não possui uma URL de reprodução válida na lista.")
+        }
+    }
+
+    private fun loadSeriesEpisodes(item: CatalogItem) {
+        val playlist = selectedPlaylist ?: return
+        episodesJob?.cancel()
+        episodesJob = viewModelScope.launch(Dispatchers.IO) {
+            episodesLoading = true
+            episodesError = null
+            try {
+                seriesEpisodes = catalogClient.fetchSeriesEpisodes(playlist, item.id)
+                if (seriesEpisodes.isEmpty()) episodesError = "Nenhum episódio foi retornado para esta série."
+            } catch (_: Exception) {
+                episodesError = "Não foi possível carregar os episódios desta série."
+            } finally {
+                episodesLoading = false
+            }
+        }
+    }
+
+    fun openEpisode(episode: SeriesEpisode) {
+        if (episode.streamUrl.isBlank()) {
+            showNotice("Este episódio não possui uma URL de reprodução válida.")
+        } else {
+            openPlayer(episode.title, episode.streamUrl)
+        }
+    }
+
+    private fun openPlayer(title: String, url: String) {
+        playingTitle = title
+        playingUrl = url
+        currentScreen = AppScreen.PLAYER
+    }
+
+    fun closePlayer() {
+        currentScreen = if (selectedCatalogItem?.kind == CatalogKind.SERIES) AppScreen.SERIES_EPISODES else AppScreen.HOME
     }
 
     fun selectCategory(category: String) {
@@ -266,7 +321,7 @@ class UnitvViewModel(
             "Kids" -> AppScreen.KIDS
             "Anime" -> AppScreen.ANIME
             "Explorar" -> AppScreen.EXPLORE
-            "Ao vivo" -> AppScreen.LIVE
+            "Ao vivo", "Canais" -> AppScreen.LIVE
             "Filmes", "Séries" -> AppScreen.VOD
             "Destaques" -> AppScreen.HIGHLIGHTS
             "Home" -> AppScreen.HOME
@@ -302,6 +357,7 @@ class UnitvViewModel(
     override fun onCleared() {
         heartbeatJob?.cancel()
         catalogJob?.cancel()
+        episodesJob?.cancel()
         super.onCleared()
     }
 }

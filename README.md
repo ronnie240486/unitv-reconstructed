@@ -61,3 +61,9 @@ Nas telas **Filmes** e **Séries**, a faixa superior apresenta as categorias rea
 A versão `0.2.3-memoryfix` não lê mais a resposta Xtream inteira como uma única `String`. O catálogo é processado em fluxo, item a item, com limites de memória por categoria e leitura linha a linha no fallback M3U. O carregamento inicia automaticamente depois que o aparelho é autorizado e a primeira fonte é selecionada; não é necessário tocar em Atualizar.
 
 Falhas de HTTP, JSON, M3U ou troca rápida de lista são tratadas dentro do fluxo de carregamento e exibidas como estado de erro, sem propagar uma exceção para a interface. O catálogo mantém um limite de itens para proteger aparelhos com memória limitada.
+
+## Player e Canais
+
+A versão `0.3.0-player` inclui player Media3/ExoPlayer para URLs autorizadas HLS e MP4. Ao selecionar um canal ou filme, o aplicativo abre a reprodução dentro do APK; ao selecionar uma série Xtream, consulta os episódios por temporada e abre o episódio escolhido. Erros de reprodução permanecem na tela do player e não encerram o aplicativo.
+
+A aba **Canais** lista todos os canais carregados da fonte ativa e oferece filtros por categoria. A mesma faixa é rolável no celular para evitar cortes. O conteúdo e as URLs são exclusivamente os retornados pela lista autorizada do aparelho.

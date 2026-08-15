@@ -18,6 +18,15 @@ enum class CatalogKind {
     SERIES
 }
 
+data class SeriesEpisode(
+    val id: String,
+    val title: String,
+    val season: Int,
+    val episode: Int,
+    val imageUrl: String = "",
+    val streamUrl: String = ""
+)
+
 data class CatalogSnapshot(
     val live: List<CatalogItem> = emptyList(),
     val movies: List<CatalogItem> = emptyList(),

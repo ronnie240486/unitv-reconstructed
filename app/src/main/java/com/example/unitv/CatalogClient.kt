@@ -216,6 +216,108 @@ class CatalogClient {
         else -> { reader.skipValue(); null }
     }
 
+    suspend fun fetchSeriesEpisodes(playlist: Playlist, seriesId: String): List<SeriesEpisode> = withContext(Dispatchers.IO) {
+        val base = playlist.url.trimEnd('/')
+        val endpoint = "$base/player_api.php?${query(playlist)}&action=${encode("get_series_info")}&series_id=${encode(seriesId)}"
+        val connection = open(endpoint).apply { requestMethod = "GET" }
+        val episodes = mutableListOf<SeriesEpisode>()
+        try {
+            val reader = JsonReader(InputStreamReader(responseStream(connection), Charsets.UTF_8))
+            reader.use { json ->
+                json.beginObject()
+                while (json.hasNext()) {
+                    when (json.nextName()) {
+                        "episodes" -> readEpisodesObject(json, playlist, base, episodes)
+                        else -> json.skipValue()
+                    }
+                }
+                json.endObject()
+            }
+        } finally {
+            connection.disconnect()
+        }
+        episodes.take(MAX_EPISODES)
+    }
+
+    private fun readEpisodesObject(reader: JsonReader, playlist: Playlist, base: String, result: MutableList<SeriesEpisode>) {
+        if (reader.peek() != JsonToken.BEGIN_OBJECT) {
+            reader.skipValue()
+            return
+        }
+        reader.beginObject()
+        while (reader.hasNext() && result.size < MAX_EPISODES) {
+            val seasonKey = reader.nextName()
+            val season = seasonKey.toIntOrNull() ?: 1
+            if (reader.peek() != JsonToken.BEGIN_ARRAY) {
+                reader.skipValue()
+                continue
+            }
+            reader.beginArray()
+            while (reader.hasNext() && result.size < MAX_EPISODES) {
+                val episode = readEpisode(reader, playlist, base, season, result.size)
+                if (episode != null) result += episode
+            }
+            reader.endArray()
+        }
+        reader.endObject()
+    }
+
+    private fun readEpisode(reader: JsonReader, playlist: Playlist, base: String, season: Int, index: Int): SeriesEpisode? {
+        if (reader.peek() != JsonToken.BEGIN_OBJECT) {
+            reader.skipValue()
+            return null
+        }
+        var id = ""
+        var title = "Episódio ${index + 1}"
+        var episodeNumber = index + 1
+        var extension = "mp4"
+        var image = ""
+        reader.beginObject()
+        while (reader.hasNext()) {
+            when (reader.nextName()) {
+                "id", "stream_id" -> id = nextText(reader)
+                "title", "name" -> title = nextText(reader).ifBlank { title }
+                "episode_num" -> episodeNumber = nextText(reader).toIntOrNull() ?: episodeNumber
+                "container_extension" -> extension = nextText(reader).ifBlank { extension }
+                "info" -> image = readEpisodeInfo(reader)
+                else -> reader.skipValue()
+            }
+        }
+        reader.endObject()
+        if (id.isBlank()) return null
+        return SeriesEpisode(
+            id = id,
+            title = title,
+            season = season,
+            episode = episodeNumber,
+            imageUrl = image,
+            streamUrl = "$base/series/${encode(playlist.username)}/${encode(playlist.password)}/$id.$extension"
+        )
+    }
+
+    private fun readEpisodeInfo(reader: JsonReader): String {
+        if (reader.peek() != JsonToken.BEGIN_OBJECT) {
+            reader.skipValue()
+            return ""
+        }
+        var image = ""
+        reader.beginObject()
+        while (reader.hasNext()) {
+            when (reader.nextName()) {
+                "movie_image", "cover_big", "cover" -> image = nextText(reader)
+                else -> reader.skipValue()
+            }
+        }
+        reader.endObject()
+        return image
+    }
+
+    private fun nextText(reader: JsonReader): String = when (reader.peek()) {
+        JsonToken.NULL -> { reader.nextNull(); "" }
+        JsonToken.STRING, JsonToken.NUMBER, JsonToken.BOOLEAN -> reader.nextString()
+        else -> { reader.skipValue(); "" }
+    }
+
     private fun open(url: String): HttpURLConnection = (URL(url).openConnection() as HttpURLConnection).apply {
         connectTimeout = 12_000
         readTimeout = 20_000
@@ -249,5 +351,6 @@ class CatalogClient {
         const val MAX_LIVE_ITEMS = 2500
         const val MAX_VOD_ITEMS = 2500
         const val MAX_M3U_ITEMS = 8000
+        const val MAX_EPISODES = 500
     }
 }

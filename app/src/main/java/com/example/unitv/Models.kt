@@ -13,6 +13,8 @@ enum class AppScreen {
     HOME,
     HIGHLIGHTS,
     LIVE,
+    PLAYER,
+    SERIES_EPISODES,
     VOD,
     SPORTS,
     PROFILE,

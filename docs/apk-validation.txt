@@ -1,4 +1,4 @@
-package: name='com.example.prestigie.reconstructed' versionCode='4' versionName='0.2.3-memoryfix' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
+package: name='com.example.prestigie.reconstructed' versionCode='5' versionName='0.3.0-player' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
 application-label:'Prestigie'
 application-icon-120:'res/drawable/prestigie_icon.png'
 application-icon-160:'res/drawable/prestigie_icon.png'
@@ -7,10 +7,10 @@ application-icon-320:'res/drawable/prestigie_icon.png'
 application-icon-480:'res/drawable/prestigie_icon.png'
 application-icon-640:'res/drawable/prestigie_icon.png'
 application-icon-65534:'res/drawable/prestigie_icon.png'
-9e5613cc4d88398c9876026cd645f967297dd49b3f05f416682593285600cd65  app/build/outputs/apk/debug/app-debug.apk
+86c414beb7bd67393d512aba540008c82e0da66a37fcbf54bc3a44570cc97481  app/build/outputs/apk/debug/app-debug.apk
 Build: SUCCESS
 Testes: testDebugUnitTest concluído
-Memória: JsonReader item a item + M3U linha a linha
-Inicialização: catálogo automático após autorização
-Proteção: falhas de rede/parsing exibidas sem encerrar a UI
-Versão: 0.2.3-memoryfix / versionCode 4
+Player: Media3 ExoPlayer com HLS/MP4 e tratamento de erro
+Canais: todos os canais e categorias reais da lista
+Séries: consulta de episódios Xtream
+Versão: 0.3.0-player / versionCode 5
