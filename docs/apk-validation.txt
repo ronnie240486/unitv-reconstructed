@@ -7,7 +7,8 @@ application-icon-320:'res/drawable/prestigie_icon.png'
 application-icon-480:'res/drawable/prestigie_icon.png'
 application-icon-640:'res/drawable/prestigie_icon.png'
 application-icon-65534:'res/drawable/prestigie_icon.png'
-5f65546470c9914ae9a6b833dc48bb8f766ca963bb0dec895a32827919aa0f99  app/build/outputs/apk/debug/app-debug.apk
+5e489d7774cd09505b377c58a772cbefc8443a634ec2f9ffe36870101c15da29  app/build/outputs/apk/debug/app-debug.apk
 Build: SUCCESS
 Testes: testDebugUnitTest concluído
-Interface: top bar, tabs, grade editorial, foco D-pad, Splash, Live, VOD, Kids, Anime, Explorar, Perfil e estados implementados
+Fluxo: identificador de 12 caracteres, Copiar, Home e seletor de até quatro listas
+Backend: GET ?mac=... com playlist_name e playlist_url

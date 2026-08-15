@@ -15,6 +15,7 @@ enum class AppScreen {
     VOD,
     SPORTS,
     PROFILE,
+    LISTS,
     KIDS,
     ANIME,
     EXPLORE,
@@ -71,6 +72,13 @@ data class Coupon(
     val description: String,
     val expires: String,
     val claimed: Boolean = false
+)
+
+data class Playlist(
+    val id: String,
+    val name: String,
+    val url: String,
+    val isActive: Boolean = false
 )
 
 data class UserSession(

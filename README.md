@@ -37,3 +37,9 @@ O pacote de saída terá o application ID `com.example.prestigie.reconstructed`,
 ## Nota de autorização
 
 A análise foi limitada a metadados, manifesto, recursos e comportamento observável do arquivo fornecido. Qualquer uso comercial, publicação de marca, reutilização de imagens, conexão a serviços, reprodução de conteúdo, ou integração com contas deve ser feito somente com autorização dos respectivos titulares e com credenciais próprias.
+
+## Ativação por aparelho e listas
+
+Após a apresentação Prestigie, o aplicativo exibe o identificador disponível no aparelho em 12 caracteres hexadecimais e oferece o botão **Copiar**. O valor pode ser cadastrado no backend. A aba **Home** substitui a antiga aba Grátis, e o botão de conta do cabeçalho foi substituído por **Listas**, onde o usuário pode escolher entre uma e quatro playlists.
+
+A integração remota está centralizada em `ProductConfig.api.playlistsUrl`. O endpoint recebe `?mac=001122AABBCC` e deve retornar `playlist_name` e `playlist_url`, conforme `docs/playlist-backend-contract.md`. Com a URL vazia, o APK usa quatro listas demonstrativas locais para permitir validar a interface sem um servidor.

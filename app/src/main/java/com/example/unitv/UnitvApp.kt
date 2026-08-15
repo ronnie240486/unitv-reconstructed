@@ -1,5 +1,8 @@
 package com.example.unitv
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -30,6 +33,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.FilterList
@@ -37,6 +41,7 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
@@ -75,6 +80,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -95,17 +101,25 @@ private data class HeaderAction(val icon: ImageVector, val label: String, val ac
 
 @Composable
 fun UnitvApp(vm: UnitvViewModel = viewModel()) {
+    val context = LocalContext.current
     var showIntro by remember { mutableStateOf(true) }
+    var showDeviceSetup by remember { mutableStateOf(true) }
     LaunchedEffect(Unit) {
         delay(1500)
         showIntro = false
     }
+    LaunchedEffect(context) {
+        vm.updateDeviceId(DeviceIdentity.read12(context))
+    }
 
     Surface(modifier = Modifier.fillMaxSize(), color = WineDark) {
-        if (showIntro) {
-            PrestigieIntro()
-        } else {
-            PrestigieShell(vm)
+        when {
+            showIntro -> PrestigieIntro()
+            showDeviceSetup -> DeviceIdentityScreen(vm) {
+                showDeviceSetup = false
+                vm.backHome()
+            }
+            else -> PrestigieShell(vm)
         }
     }
 
@@ -144,6 +158,65 @@ private fun PrestigieIntro() {
             Text("Carregando sua experiência", color = TextMuted, fontSize = 14.sp)
             Box(Modifier.width(220.dp).height(4.dp).clip(RoundedCornerShape(4.dp)).background(Color(0x663F2225))) {
                 Box(Modifier.fillMaxWidth(0.64f).fillMaxHeight().background(PrestigieGold))
+            }
+        }
+    }
+}
+
+@Composable
+private fun DeviceIdentityScreen(vm: UnitvViewModel, onContinue: () -> Unit) {
+    val context = LocalContext.current
+    Box(modifier = Modifier.fillMaxSize()) {
+        Image(
+            painter = painterResource(R.drawable.prestigie_catalog_style),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
+        )
+        Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xDD16060A), Color(0xF916060A)))))
+        Column(
+            modifier = Modifier.align(Alignment.Center).width(620.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Image(
+                painter = painterResource(R.drawable.prestigie_logo),
+                contentDescription = "Prestigie",
+                modifier = Modifier.width(300.dp).height(82.dp),
+                contentScale = ContentScale.Fit
+            )
+            Text("Ative seu aparelho", color = Color.White, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text("Copie o identificador abaixo e cadastre-o no seu backend para liberar as listas.", color = TextMuted, fontSize = 15.sp)
+            Card(colors = CardDefaults.cardColors(containerColor = WinePanel), shape = RoundedCornerShape(16.dp)) {
+                Column(Modifier.padding(26.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("MAC / ID DO APARELHO", color = PrestigieGold, fontSize = 12.sp, letterSpacing = 2.sp)
+                    Text(vm.deviceId, color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Button(
+                            onClick = {
+                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                clipboard.setPrimaryClip(ClipData.newPlainText("MAC do aparelho", vm.deviceId))
+                                vm.showNotice("MAC copiado. Cole o valor no backend para vincular as listas.")
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = PrestigieGold, contentColor = WineDark)
+                        ) {
+                            Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Copiar")
+                        }
+                        OutlinedButton(onClick = vm::refreshPlaylists) {
+                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Atualizar listas")
+                        }
+                    }
+                }
+            }
+            Text("O identificador é exibido em 12 caracteres hexadecimais.", color = TextMuted, fontSize = 12.sp)
+            Button(onClick = onContinue, colors = ButtonDefaults.buttonColors(containerColor = Color(0xCC8C5215), contentColor = Color.White)) {
+                Text("Continuar")
+                Spacer(Modifier.width(8.dp))
+                Icon(Icons.Default.ArrowForward, contentDescription = null, modifier = Modifier.size(18.dp))
             }
         }
     }
@@ -202,7 +275,7 @@ private fun TopBar(vm: UnitvViewModel) {
             HeaderAction(Icons.Default.Search, "Buscar", vm::openSearch),
             HeaderAction(Icons.Default.FilterList, "Filtros", vm::openFilters),
             HeaderAction(Icons.Default.History, "Histórico", vm::openHistory),
-            HeaderAction(Icons.Default.Person, "Perfil") { vm.selectSection(AppSection.PROFILE) },
+            HeaderAction(Icons.Default.List, "Listas", vm::openLists),
             HeaderAction(Icons.Default.HelpOutline, "Ajuda", vm::openHelp),
             HeaderAction(Icons.Default.Notifications, "Notificações", vm::openNotifications)
         )
@@ -236,7 +309,7 @@ private fun HeaderIconButton(icon: ImageVector, label: String, onClick: () -> Un
 
 @Composable
 private fun CategoryTabs(vm: UnitvViewModel) {
-    val tabs = listOf("Gratuito", "Destaques", "Filmes", "Séries", "Kids", "Anime", "Explorar")
+    val tabs = listOf("Home", "Destaques", "Filmes", "Séries", "Kids", "Anime", "Explorar")
     Row(
         modifier = Modifier.fillMaxWidth().height(68.dp).background(Color(0xB516060A)).padding(horizontal = 56.dp),
         horizontalArrangement = Arrangement.spacedBy(42.dp),
@@ -263,6 +336,7 @@ private fun ScreenContent(vm: UnitvViewModel) {
         AppScreen.VOD -> CatalogScreen(vm, "Filmes e séries", vm.vodItems.map { it.title }, listOf(R.drawable.prestigie_card_01, R.drawable.prestigie_card_03, R.drawable.prestigie_card_05, R.drawable.prestigie_card_04))
         AppScreen.SPORTS -> SportsScreen(vm)
         AppScreen.PROFILE -> ProfileScreen(vm)
+        AppScreen.LISTS -> PlaylistScreen(vm)
         AppScreen.KIDS -> CatalogScreen(vm, "Kids", listOf("Pequenos exploradores", "Aventuras no céu", "Clube dos amigos", "O mapa dourado"), listOf(R.drawable.prestigie_card_02, R.drawable.prestigie_card_04, R.drawable.prestigie_card_02, R.drawable.prestigie_card_05))
         AppScreen.ANIME -> CatalogScreen(vm, "Anime", listOf("Navegador celeste", "A bússola de ouro", "Cidade orbital", "Guardião da aurora"), listOf(R.drawable.prestigie_card_05, R.drawable.prestigie_card_03, R.drawable.prestigie_card_01, R.drawable.prestigie_card_05))
         AppScreen.EXPLORE -> ExploreScreen(vm)
@@ -375,6 +449,61 @@ private fun ContentRow(title: String, items: List<VodItem>, onClick: (VodItem) -
         LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             items(items) { item ->
                 ImageCard(R.drawable.prestigie_card_01, item.title, Modifier.width(190.dp).height(116.dp)) { onClick(item) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlaylistScreen(vm: UnitvViewModel) {
+    val context = LocalContext.current
+    ScreenFrame("Listas", "Escolha qual lista deseja usar neste aparelho", vm::backHome) {
+        Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Card(colors = CardDefaults.cardColors(containerColor = WinePanel), shape = RoundedCornerShape(14.dp)) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("MAC / ID DO APARELHO", color = PrestigieGold, fontSize = 11.sp, letterSpacing = 1.6.sp)
+                        Text(vm.deviceId, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                    }
+                    OutlinedButton(onClick = {
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        clipboard.setPrimaryClip(ClipData.newPlainText("MAC do aparelho", vm.deviceId))
+                        vm.showNotice("MAC copiado para a área de transferência.")
+                    }) {
+                        Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(7.dp))
+                        Text("Copiar")
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    ActionButton("Atualizar", Icons.Default.Refresh, vm::refreshPlaylists)
+                }
+            }
+            if (vm.playlistsLoading) {
+                Text("Consultando listas para este aparelho…", color = TextMuted)
+            }
+            vm.playlistsError?.let { error ->
+                Text("Não foi possível carregar as listas: $error", color = Color(0xFFFFB4AB))
+            }
+            Text("Listas disponíveis", color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            if (vm.playlists.isEmpty() && !vm.playlistsLoading) {
+                Card(colors = CardDefaults.cardColors(containerColor = WinePanel), shape = RoundedCornerShape(14.dp)) {
+                    Row(Modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Info, contentDescription = null, tint = PrestigieGold)
+                        Spacer(Modifier.width(12.dp))
+                        Text("Nenhuma lista foi vinculada ainda. Copie o MAC, cadastre-o no backend e toque em Atualizar.", color = TextMuted)
+                    }
+                }
+            } else {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    items(vm.playlists) { playlist ->
+                        val selected = vm.selectedPlaylistId == playlist.id
+                        FocusRow(
+                            title = playlist.name,
+                            subtitle = if (selected) "Lista ativa" else "Toque para usar esta lista",
+                            icon = if (selected) Icons.Default.CheckCircle else Icons.Default.List
+                        ) { vm.selectPlaylist(playlist) }
+                    }
+                }
             }
         }
     }
