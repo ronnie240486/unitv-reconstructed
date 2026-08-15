@@ -221,11 +221,6 @@ private fun DeviceIdentityScreen(vm: UnitvViewModel, onContinue: () -> Unit) {
                             Spacer(Modifier.width(8.dp))
                             Text("Copiar")
                         }
-                        OutlinedButton(onClick = vm::refreshPlaylists, modifier = Modifier.fillMaxWidth()) {
-                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text("Verificar e atualizar")
-                        }
                     }
                 }
             }
@@ -433,9 +428,8 @@ private fun HomeScreen(vm: UnitvViewModel) {
                     Column(Modifier.weight(1f)) {
                         Text("Lista ativa", color = PrestigieGold, fontSize = 12.sp, letterSpacing = 1.5.sp)
                         Text(vm.selectedPlaylist?.name ?: "Nenhuma lista selecionada", color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        Text("Atualize o conteúdo sem sair da Home", color = TextMuted, fontSize = 12.sp)
+                        Text("O conteúdo é carregado automaticamente ao iniciar", color = TextMuted, fontSize = 12.sp)
                     }
-                    ActionButton("Atualizar", Icons.Default.Refresh, vm::refreshCatalog)
                 }
             }
         }
@@ -457,11 +451,6 @@ private fun HighlightsScreen(vm: UnitvViewModel) {
                 Column(Modifier.weight(1f)) {
                     Text("Destaques", color = Color.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                     Text("Conteúdos selecionados da sua lista", color = TextMuted)
-                }
-                OutlinedButton(onClick = vm::refreshCatalog) {
-                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Atualizar")
                 }
             }
         }
@@ -616,7 +605,7 @@ private fun PlaylistScreen(vm: UnitvViewModel) {
                     Row(Modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Info, contentDescription = null, tint = PrestigieGold)
                         Spacer(Modifier.width(12.dp))
-                        Text("Nenhuma lista foi vinculada ainda. Copie o MAC, cadastre-o no backend e toque em Atualizar.", color = TextMuted)
+                        Text("Nenhuma lista foi vinculada ainda. Copie o MAC e cadastre-o no backend. O aplicativo carregará automaticamente ao iniciar.", color = TextMuted)
                     }
                 }
             } else {

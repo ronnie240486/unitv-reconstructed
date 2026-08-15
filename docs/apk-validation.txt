@@ -1,4 +1,4 @@
-package: name='com.example.prestigie.reconstructed' versionCode='3' versionName='0.2.2-catalogo' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
+package: name='com.example.prestigie.reconstructed' versionCode='4' versionName='0.2.3-memoryfix' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
 application-label:'Prestigie'
 application-icon-120:'res/drawable/prestigie_icon.png'
 application-icon-160:'res/drawable/prestigie_icon.png'
@@ -7,9 +7,10 @@ application-icon-320:'res/drawable/prestigie_icon.png'
 application-icon-480:'res/drawable/prestigie_icon.png'
 application-icon-640:'res/drawable/prestigie_icon.png'
 application-icon-65534:'res/drawable/prestigie_icon.png'
-b9f1db6db0ab23595d8c31ba84d08a25262f9cce5ee0e2835635d334c6489bbe  app/build/outputs/apk/debug/app-debug.apk
+9e5613cc4d88398c9876026cd645f967297dd49b3f05f416682593285600cd65  app/build/outputs/apk/debug/app-debug.apk
 Build: SUCCESS
 Testes: testDebugUnitTest concluído
-Navegação: Home e Destaques separados
-Categorias: faixa real em Filmes e Séries
-Cabeçalho: botão Seja um membro removido
+Memória: JsonReader item a item + M3U linha a linha
+Inicialização: catálogo automático após autorização
+Proteção: falhas de rede/parsing exibidas sem encerrar a UI
+Versão: 0.2.3-memoryfix / versionCode 4

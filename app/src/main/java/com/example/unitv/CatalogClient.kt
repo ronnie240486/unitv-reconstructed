@@ -1,33 +1,45 @@
 package com.example.unitv
 
+import android.util.JsonReader
+import android.util.JsonToken
+import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URLEncoder
 import java.net.URL
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.json.JSONArray
 import org.json.JSONObject
 
+/**
+ * Carrega catálogos sem manter a resposta Xtream/M3U inteira em memória.
+ * O limite evita que uma fonte com milhões de itens derrube dispositivos móveis.
+ */
 class CatalogClient {
     suspend fun load(playlist: Playlist): CatalogSnapshot = withContext(Dispatchers.IO) {
         if (playlist.directM3uUrl.isNotBlank()) {
-            runCatching { loadM3u(playlist.directM3uUrl) }.getOrElse { loadXtream(playlist) }
+            try {
+                loadM3u(playlist.directM3uUrl)
+            } catch (_: Exception) {
+                loadXtream(playlist)
+            }
         } else {
-            runCatching { loadXtream(playlist) }.getOrElse { loadM3u(playlist.url) }
+            try {
+                loadXtream(playlist)
+            } catch (_: Exception) {
+                loadM3u(playlist.url)
+            }
         }
     }
 
     private fun loadXtream(playlist: Playlist): CatalogSnapshot {
         require(playlist.username.isNotBlank() && playlist.password.isNotBlank())
         val base = playlist.url.trimEnd('/')
-        val liveCategories = categoryMap(getJsonArray("$base/player_api.php", playlist, "get_live_categories"))
-        val vodCategories = categoryMap(getJsonArray("$base/player_api.php", playlist, "get_vod_categories"))
-        val seriesCategories = categoryMap(getJsonArray("$base/player_api.php", playlist, "get_series_categories"))
+        val liveCategories = categoryMap("$base/player_api.php", playlist, "get_live_categories")
+        val vodCategories = categoryMap("$base/player_api.php", playlist, "get_vod_categories")
+        val seriesCategories = categoryMap("$base/player_api.php", playlist, "get_series_categories")
 
         val live = buildList {
-            val streams = getJsonArray("$base/player_api.php", playlist, "get_live_streams")
-            for (index in 0 until streams.length()) {
-                val item = streams.optJSONObject(index) ?: continue
+            streamArray("$base/player_api.php", playlist, "get_live_streams", MAX_LIVE_ITEMS) { item, index ->
                 val id = item.optString("stream_id").ifBlank { item.optString("num", "live-$index") }
                 val name = item.optString("name").ifBlank { "Canal ${index + 1}" }
                 val category = liveCategories[item.optString("category_id")] ?: "Canais"
@@ -44,9 +56,7 @@ class CatalogClient {
             }
         }
         val movies = buildList {
-            val streams = getJsonArray("$base/player_api.php", playlist, "get_vod_streams")
-            for (index in 0 until streams.length()) {
-                val item = streams.optJSONObject(index) ?: continue
+            streamArray("$base/player_api.php", playlist, "get_vod_streams", MAX_VOD_ITEMS) { item, index ->
                 val id = item.optString("stream_id").ifBlank { item.optString("num", "movie-$index") }
                 val name = item.optString("name").ifBlank { "Filme ${index + 1}" }
                 val category = vodCategories[item.optString("category_id")] ?: "Filmes"
@@ -66,9 +76,7 @@ class CatalogClient {
             }
         }
         val series = buildList {
-            val items = getJsonArray("$base/player_api.php", playlist, "get_series")
-            for (index in 0 until items.length()) {
-                val item = items.optJSONObject(index) ?: continue
+            streamArray("$base/player_api.php", playlist, "get_series", MAX_VOD_ITEMS) { item, index ->
                 val id = item.optString("series_id").ifBlank { item.optString("num", "series-$index") }
                 val name = item.optString("name").ifBlank { "Série ${index + 1}" }
                 val category = seriesCategories[item.optString("category_id")] ?: "Séries"
@@ -91,20 +99,28 @@ class CatalogClient {
 
     private fun loadM3u(url: String): CatalogSnapshot {
         val connection = open(url).apply { requestMethod = "GET" }
-        val text = try { read(connection) } finally { connection.disconnect() }
-        return parseM3u(text)
+        return try {
+            val stream = responseStream(connection)
+            InputStreamReader(stream, Charsets.UTF_8).use { parseM3u(it) }
+        } finally {
+            connection.disconnect()
+        }
     }
 
-    private fun parseM3u(text: String): CatalogSnapshot {
+    private fun parseM3u(reader: InputStreamReader): CatalogSnapshot {
         val live = mutableListOf<CatalogItem>()
         val movies = mutableListOf<CatalogItem>()
         val series = mutableListOf<CatalogItem>()
         var metadata = ""
         var image = ""
         var group = ""
-        val lines = text.lineSequence().map { it.trim() }.filter { it.isNotBlank() }.toList()
-        for (index in lines.indices) {
-            val line = lines[index]
+        var index = 0
+        var total = 0
+        val buffered = reader.buffered()
+        while (total < MAX_M3U_ITEMS) {
+            val raw = buffered.readLine() ?: break
+            val line = raw.trim()
+            if (line.isBlank()) continue
             if (line.startsWith("#EXTINF", ignoreCase = true)) {
                 metadata = line.substringAfterLast(',').trim().ifBlank { "Conteúdo ${index + 1}" }
                 image = attribute(line, "tvg-logo")
@@ -121,10 +137,12 @@ class CatalogClient {
             }
             val item = CatalogItem("m3u-$index", metadata, group, kind, image, line)
             when (kind) {
-                CatalogKind.LIVE -> live += item
-                CatalogKind.MOVIE -> movies += item
-                CatalogKind.SERIES -> series += item
+                CatalogKind.LIVE -> if (live.size < MAX_LIVE_ITEMS) live += item
+                CatalogKind.MOVIE -> if (movies.size < MAX_VOD_ITEMS) movies += item
+                CatalogKind.SERIES -> if (series.size < MAX_VOD_ITEMS) series += item
             }
+            total++
+            index++
             metadata = ""
             image = ""
             group = ""
@@ -132,18 +150,70 @@ class CatalogClient {
         return CatalogSnapshot(live, movies, series)
     }
 
-    private fun categoryMap(array: JSONArray): Map<String, String> = buildMap {
-        for (index in 0 until array.length()) {
-            val item = array.optJSONObject(index) ?: continue
-            put(item.optString("category_id"), item.optString("category_name").ifBlank { "Categoria" })
+    private fun categoryMap(endpoint: String, playlist: Playlist, action: String): Map<String, String> {
+        val categories = LinkedHashMap<String, String>()
+        streamArray(endpoint, playlist, action, MAX_CATEGORY_ITEMS) { item, _ ->
+            val id = item.optString("category_id")
+            val name = item.optString("category_name").ifBlank { "Categoria" }
+            if (id.isNotBlank()) categories[id] = name
+        }
+        return categories
+    }
+
+    private fun streamArray(
+        endpoint: String,
+        playlist: Playlist,
+        action: String,
+        maxItems: Int,
+        onItem: (JSONObject, Int) -> Unit
+    ) {
+        val url = "$endpoint?${query(playlist)}&action=${encode(action)}"
+        val connection = open(url).apply { requestMethod = "GET" }
+        try {
+            val reader = JsonReader(InputStreamReader(responseStream(connection), Charsets.UTF_8))
+            reader.use {
+                it.beginArray()
+                var index = 0
+                while (it.hasNext()) {
+                    if (index >= maxItems) {
+                        it.skipValue()
+                        continue
+                    }
+                    readObject(it)?.let { item -> onItem(item, index) }
+                    index++
+                }
+                it.endArray()
+            }
+        } finally {
+            connection.disconnect()
         }
     }
 
-    private fun getJsonArray(endpoint: String, playlist: Playlist, action: String): JSONArray {
-        val url = "$endpoint?${query(playlist)}&action=${encode(action)}"
-        val connection = open(url).apply { requestMethod = "GET" }
-        val body = try { read(connection) } finally { connection.disconnect() }
-        return JSONArray(body)
+    private fun readObject(reader: JsonReader): JSONObject? {
+        if (reader.peek() == JsonToken.NULL) {
+            reader.nextNull()
+            return null
+        }
+        if (reader.peek() != JsonToken.BEGIN_OBJECT) {
+            reader.skipValue()
+            return null
+        }
+        val result = JSONObject()
+        reader.beginObject()
+        while (reader.hasNext()) {
+            val name = reader.nextName()
+            val value = readValue(reader)
+            if (value != null) result.put(name, value)
+        }
+        reader.endObject()
+        return result
+    }
+
+    private fun readValue(reader: JsonReader): Any? = when (reader.peek()) {
+        JsonToken.STRING, JsonToken.NUMBER -> reader.nextString()
+        JsonToken.BOOLEAN -> reader.nextBoolean()
+        JsonToken.NULL -> { reader.nextNull(); null }
+        else -> { reader.skipValue(); null }
     }
 
     private fun open(url: String): HttpURLConnection = (URL(url).openConnection() as HttpURLConnection).apply {
@@ -154,11 +224,12 @@ class CatalogClient {
         setRequestProperty("Connection", "close")
     }
 
-    private fun read(connection: HttpURLConnection): String {
-        val stream = if (connection.responseCode in 200..299) connection.inputStream else connection.errorStream
-        val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
-        if (connection.responseCode !in 200..299) error("Fonte indisponível (HTTP ${connection.responseCode})")
-        return body
+    private fun responseStream(connection: HttpURLConnection) = if (connection.responseCode in 200..299) {
+        connection.inputStream
+    } else {
+        val code = connection.responseCode
+        connection.errorStream?.close()
+        error("Fonte indisponível (HTTP $code)")
     }
 
     private fun query(playlist: Playlist): String = "username=${encode(playlist.username)}&password=${encode(playlist.password)}"
@@ -171,5 +242,12 @@ class CatalogClient {
         if (start < 0) return ""
         val from = start + prefix.length
         return line.substring(from).substringBefore('"')
+    }
+
+    private companion object {
+        const val MAX_CATEGORY_ITEMS = 500
+        const val MAX_LIVE_ITEMS = 2500
+        const val MAX_VOD_ITEMS = 2500
+        const val MAX_M3U_ITEMS = 8000
     }
 }

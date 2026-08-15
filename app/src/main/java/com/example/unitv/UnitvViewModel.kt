@@ -24,6 +24,7 @@ class UnitvViewModel(
     private val backend = if (apiConfig.useDemoData) null else RenciaBackend(apiConfig)
     private val catalogClient = CatalogClient()
     private var heartbeatJob: Job? = null
+    private var catalogJob: Job? = null
     private val seenNotificationIds = mutableSetOf<Long>()
 
     var currentScreen by mutableStateOf(AppScreen.HOME)
@@ -120,6 +121,7 @@ class UnitvViewModel(
                     if (!access.allowed) {
                         playlists = emptyList()
                         selectedPlaylistId = null
+                        catalog = CatalogSnapshot()
                         playlistsError = "Acesso indisponível para este aparelho."
                         notice = "Este aparelho não está liberado para reproduzir conteúdo."
                     } else {
@@ -212,7 +214,8 @@ class UnitvViewModel(
 
     private fun loadSelectedCatalog() {
         val playlist = selectedPlaylist ?: return
-        viewModelScope.launch(Dispatchers.IO) {
+        catalogJob?.cancel()
+        catalogJob = viewModelScope.launch(Dispatchers.IO) {
             catalogLoading = true
             catalogError = null
             try {
@@ -298,6 +301,7 @@ class UnitvViewModel(
 
     override fun onCleared() {
         heartbeatJob?.cancel()
+        catalogJob?.cancel()
         super.onCleared()
     }
 }

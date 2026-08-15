@@ -55,3 +55,9 @@ A Home passou a mostrar seções roláveis com contagem de itens e botão de atu
 A aba **Home** agora é uma página principal independente, com banner, atalhos para TV ao vivo e Listas, resumo de canais/filmes/séries e indicação da lista ativa. A aba **Destaques** possui uma tela separada, com seções próprias de canais, filmes e séries.
 
 Nas telas **Filmes** e **Séries**, a faixa superior apresenta as categorias reais encontradas na lista ativa, incluindo o botão **Todos**. O botão **Seja um membro** foi removido do cabeçalho em TV e celular.
+
+## Correção de memória e carregamento automático
+
+A versão `0.2.3-memoryfix` não lê mais a resposta Xtream inteira como uma única `String`. O catálogo é processado em fluxo, item a item, com limites de memória por categoria e leitura linha a linha no fallback M3U. O carregamento inicia automaticamente depois que o aparelho é autorizado e a primeira fonte é selecionada; não é necessário tocar em Atualizar.
+
+Falhas de HTTP, JSON, M3U ou troca rápida de lista são tratadas dentro do fluxo de carregamento e exibidas como estado de erro, sem propagar uma exceção para a interface. O catálogo mantém um limite de itens para proteger aparelhos com memória limitada.
