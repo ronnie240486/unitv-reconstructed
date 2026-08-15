@@ -6,6 +6,9 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 class UnitvViewModel(
@@ -18,11 +21,9 @@ class UnitvViewModel(
     val plans: List<Plan> = repository.plans()
     val coupons: List<Coupon> = repository.coupons()
 
-    private val playlistRepository: PlaylistRepository = if (apiConfig.playlistsUrl.isBlank()) {
-        DemoPlaylistRepository()
-    } else {
-        HttpPlaylistRepository(apiConfig)
-    }
+    private val backend = if (apiConfig.useDemoData) null else RenciaBackend(apiConfig)
+    private var heartbeatJob: Job? = null
+    private val seenNotificationIds = mutableSetOf<Long>()
 
     var currentScreen by mutableStateOf(AppScreen.HOME)
         private set
@@ -30,9 +31,13 @@ class UnitvViewModel(
         private set
     var selectedVod by mutableStateOf<VodItem?>(null)
         private set
-    var selectedCategory by mutableStateOf("Destaques")
+    var selectedCategory by mutableStateOf("Home")
         private set
     var deviceId by mutableStateOf("")
+        private set
+    var deviceAccess by mutableStateOf<DeviceAccess?>(null)
+        private set
+    var visualConfig by mutableStateOf(VisualConfig())
         private set
     var playlists by mutableStateOf<List<Playlist>>(emptyList())
         private set
@@ -41,6 +46,10 @@ class UnitvViewModel(
     var playlistsLoading by mutableStateOf(false)
         private set
     var playlistsError by mutableStateOf<String?>(null)
+        private set
+    var accessLoading by mutableStateOf(false)
+        private set
+    var backendNotifications by mutableStateOf<List<BackendNotification>>(emptyList())
         private set
     var searchQuery by mutableStateOf("")
     var session by mutableStateOf(UserSession())
@@ -57,29 +66,120 @@ class UnitvViewModel(
     val selectedPlaylist: Playlist?
         get() = playlists.firstOrNull { it.id == selectedPlaylistId }
 
+    val macAddress: String
+        get() = DeviceIdentity.toMac(deviceId)
+
     fun updateDeviceId(raw: String) {
         val normalized = DeviceIdentity.normalize12(raw)
         if (deviceId == normalized) return
         deviceId = normalized
-        refreshPlaylists()
+        refreshBackend()
+        startHeartbeat()
     }
 
     fun refreshPlaylists() {
+        refreshBackend()
+    }
+
+    fun refreshBackend() {
         if (deviceId.isBlank()) return
         viewModelScope.launch(Dispatchers.IO) {
+            accessLoading = true
             playlistsLoading = true
             playlistsError = null
-            runCatching { playlistRepository.fetchByDeviceId(deviceId).take(4) }
-                .onSuccess { loaded ->
-                    playlists = loaded
-                    if (selectedPlaylistId !in loaded.map { it.id }) {
-                        selectedPlaylistId = loaded.firstOrNull()?.id
+            try {
+                if (backend == null) {
+                    playlists = DemoPlaylistRepository().fetchByDeviceId(deviceId)
+                    selectFirstPlaylistIfNeeded()
+                } else {
+                    val access = backend.checkDevice(macAddress)
+                    deviceAccess = access
+                    if (!access.allowed) {
+                        playlists = emptyList()
+                        selectedPlaylistId = null
+                        playlistsError = "Acesso indisponível para este aparelho."
+                        notice = "Este aparelho não está liberado para reproduzir conteúdo."
+                    } else {
+                        visualConfig = runCatching { backend.fetchVisualConfig(macAddress) }.getOrDefault(VisualConfig())
+                        playlists = backend.fetchSources(macAddress)
+                        selectFirstPlaylistIfNeeded()
+                        backend.heartbeat(macAddress)
+                        syncNotificationsAndCommands()
                     }
                 }
-                .onFailure { error ->
-                    playlistsError = error.message ?: "Não foi possível carregar as listas."
+            } catch (_: Exception) {
+                playlistsError = "Não foi possível validar o aparelho agora. Tente novamente."
+            } finally {
+                playlistsLoading = false
+                accessLoading = false
+            }
+        }
+    }
+
+    private fun selectFirstPlaylistIfNeeded() {
+        if (selectedPlaylistId !in playlists.map { it.id }) {
+            selectedPlaylistId = playlists.firstOrNull()?.id
+        }
+        playlists = playlists.map { it.copy(isActive = it.id == selectedPlaylistId) }
+    }
+
+    private fun startHeartbeat() {
+        heartbeatJob?.cancel()
+        if (backend == null) return
+        heartbeatJob = viewModelScope.launch(Dispatchers.IO) {
+            while (isActive) {
+                runCatching {
+                    backend.heartbeat(macAddress)
+                    syncNotificationsAndCommands()
                 }
-            playlistsLoading = false
+                delay(60_000)
+            }
+        }
+    }
+
+    private suspend fun syncNotificationsAndCommands() {
+        val service = backend ?: return
+        val notifications = service.listNotifications(macAddress)
+        backendNotifications = notifications
+        notifications.filter { it.id !in seenNotificationIds }.forEach { notification ->
+            seenNotificationIds += notification.id
+            notice = "${notification.title}: ${notification.message}"
+            runCatching { service.acknowledgeNotification(macAddress, notification.id) }
+        }
+
+        val command = service.remoteCommands(macAddress).firstOrNull() ?: return
+        val result = runCatching { executeRemoteCommand(command) }
+        val status = if (result.isSuccess) "executed" else "failed"
+        val message = result.getOrElse { "Não foi possível concluir o comando." }
+        runCatching { service.acknowledgeCommand(macAddress, command.id, status, message) }
+    }
+
+    private suspend fun executeRemoteCommand(command: RemoteCommand): String {
+        return when (command.command) {
+            "refresh_playlist", "switch_playlist", "sync_access" -> {
+                val loaded = backend?.fetchSources(macAddress).orEmpty()
+                playlists = loaded
+                selectFirstPlaylistIfNeeded()
+                "Lista atualizada"
+            }
+            "show_message" -> {
+                if (command.payload.isNotBlank()) notice = command.payload
+                "Mensagem exibida"
+            }
+            "restart_player" -> "Player reiniciado"
+            "update_dns" -> "Configuração de rede recebida"
+            else -> error("Comando não suportado")
+        }
+    }
+
+    fun reportPlaybackFailure() {
+        val activeNumber = selectedPlaylist?.number ?: 1
+        val service = backend ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching { service.reportPlaybackFailure(macAddress, activeNumber) }
+                .onSuccess { switchApplied ->
+                    if (switchApplied) refreshBackend()
+                }
         }
     }
 
@@ -89,9 +189,7 @@ class UnitvViewModel(
         notice = "Lista selecionada: ${playlist.name}"
     }
 
-    fun openLists() {
-        currentScreen = AppScreen.LISTS
-    }
+    fun openLists() { currentScreen = AppScreen.LISTS }
 
     fun selectSection(section: AppSection) {
         selectedSection = section
@@ -104,10 +202,7 @@ class UnitvViewModel(
         }
     }
 
-    fun openVod(item: VodItem) {
-        selectedVod = item
-        currentScreen = AppScreen.VOD_DETAILS
-    }
+    fun openVod(item: VodItem) { selectedVod = item; currentScreen = AppScreen.VOD_DETAILS }
 
     fun selectCategory(category: String) {
         selectedCategory = category
@@ -121,22 +216,12 @@ class UnitvViewModel(
         }
     }
 
-    fun openSearch() {
-        searchQuery = ""
-        currentScreen = AppScreen.SEARCH
-    }
-
-    fun openLogin() {
-        currentScreen = AppScreen.LOGIN
-    }
+    fun openSearch() { searchQuery = ""; currentScreen = AppScreen.SEARCH }
+    fun openLogin() { currentScreen = AppScreen.LOGIN }
 
     fun login(account: String) {
-        session = UserSession(
-            accountLabel = account.ifBlank { "Minha conta" },
-            isAuthenticated = true,
-            membershipLabel = "Plano demonstrativo"
-        )
-        notice = "Login local concluído. Conecte um AuthRepository para autenticação real."
+        session = UserSession(account.ifBlank { "Minha conta" }, true, "Plano demonstrativo")
+        notice = "Login local concluído."
         currentScreen = AppScreen.PROFILE
     }
 
@@ -151,13 +236,13 @@ class UnitvViewModel(
     fun openHistory() { currentScreen = AppScreen.HISTORY }
     fun openFilters() { currentScreen = AppScreen.FILTERS }
     fun openHelp() { currentScreen = AppScreen.HELP }
-
-    fun backHome() {
-        currentScreen = AppScreen.HOME
-        selectedSection = AppSection.HOME
-    }
-
+    fun backHome() { currentScreen = AppScreen.HOME; selectedSection = AppSection.HOME }
     fun openAccountScreen(screen: AppScreen) { currentScreen = screen }
     fun showNotice(message: String) { notice = message }
     fun dismissNotice() { notice = null }
+
+    override fun onCleared() {
+        heartbeatJob?.cancel()
+        super.onCleared()
+    }
 }

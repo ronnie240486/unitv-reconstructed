@@ -78,7 +78,51 @@ data class Playlist(
     val id: String,
     val name: String,
     val url: String,
+    val username: String = "",
+    val password: String = "",
+    val type: String = "",
+    val number: Int = 1,
     val isActive: Boolean = false
+)
+
+data class DeviceAccess(
+    val found: Boolean,
+    val allowed: Boolean,
+    val status: String,
+    val app: String,
+    val urlM3u8: String,
+    val urlEpg: String,
+    val expiration: String
+)
+
+data class BackendNotification(
+    val id: Long,
+    val severity: String,
+    val title: String,
+    val message: String,
+    val status: String
+)
+
+data class RemoteCommand(
+    val id: Long,
+    val command: String,
+    val payload: String = "",
+    val expiresAt: String = ""
+)
+
+data class VisualConfig(
+    val appName: String = "Prestigie",
+    val logoUrl: String = "",
+    val bannerUrl: String = "",
+    val backgroundUrl: String = "",
+    val messageTitle: String = "",
+    val messageText: String = "",
+    val messageImageUrl: String = "",
+    val liveIconUrl: String = "",
+    val moviesIconUrl: String = "",
+    val seriesIconUrl: String = "",
+    val updateUrl: String = "",
+    val updateVersion: String = ""
 )
 
 data class UserSession(

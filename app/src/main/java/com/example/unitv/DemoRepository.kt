@@ -1,11 +1,5 @@
 package com.example.unitv
 
-import java.net.HttpURLConnection
-import java.net.URLEncoder
-import java.net.URL
-import org.json.JSONArray
-import org.json.JSONObject
-
 interface ContentRepository {
     fun channels(): List<Channel>
     fun vodItems(): List<VodItem>
@@ -14,7 +8,7 @@ interface ContentRepository {
     fun coupons(): List<Coupon>
 }
 
-/** Dados locais apenas para demonstrar a navegação sem depender de servidores externos. */
+/** Dados locais usados somente quando ProductConfig.api.useDemoData = true. */
 class DemoContentRepository : ContentRepository {
     override fun channels() = listOf(
         Channel("news", "Notícias 24h", "Notícias", "Boletim da manhã"),
@@ -57,72 +51,20 @@ interface PlaylistRepository {
 
 class DemoPlaylistRepository : PlaylistRepository {
     override suspend fun fetchByDeviceId(deviceId: String): List<Playlist> = listOf(
-        Playlist("list-1", "Lista principal", "https://backend.example.invalid/playlists/$deviceId/1"),
-        Playlist("list-2", "Filmes e séries", "https://backend.example.invalid/playlists/$deviceId/2"),
-        Playlist("list-3", "Kids", "https://backend.example.invalid/playlists/$deviceId/3"),
-        Playlist("list-4", "Esportes", "https://backend.example.invalid/playlists/$deviceId/4")
+        Playlist("list-1", "Lista principal", "https://backend.example.invalid/playlists/$deviceId/1", type = "demo", number = 1),
+        Playlist("list-2", "Filmes e séries", "https://backend.example.invalid/playlists/$deviceId/2", type = "demo", number = 2),
+        Playlist("list-3", "Kids", "https://backend.example.invalid/playlists/$deviceId/3", type = "demo", number = 3),
+        Playlist("list-4", "Esportes", "https://backend.example.invalid/playlists/$deviceId/4", type = "demo", number = 4)
     )
 }
 
-/**
- * Integração opcional com backend próprio.
- *
- * Contrato esperado:
- * GET {playlistsUrl}?mac=001122AABBCC
- * {
- *   "playlists": [
- *     { "playlist_name": "Lista principal", "playlist_url": "https://..." }
- *   ]
- * }
- */
-class HttpPlaylistRepository(private val config: ApiConfig) : PlaylistRepository {
-    override suspend fun fetchByDeviceId(deviceId: String): List<Playlist> {
-        if (config.playlistsUrl.isBlank()) return emptyList()
-        val query = URLEncoder.encode(deviceId, Charsets.UTF_8.name())
-        val endpoint = if (config.playlistsUrl.contains("?")) {
-            "${config.playlistsUrl}&mac=$query"
-        } else {
-            "${config.playlistsUrl}?mac=$query"
-        }
-        val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
-            requestMethod = "GET"
-            connectTimeout = 8000
-            readTimeout = 8000
-            setRequestProperty("Accept", "application/json")
-        }
-        return try {
-            if (connection.responseCode !in 200..299) {
-                error("Backend retornou HTTP ${connection.responseCode}")
-            }
-            val body = connection.inputStream.bufferedReader().use { it.readText() }
-            parsePlaylists(body)
-        } finally {
-            connection.disconnect()
-        }
-    }
-
-    private fun parsePlaylists(body: String): List<Playlist> {
-        val root = body.trim()
-        val array = if (root.startsWith("[")) JSONArray(root) else JSONObject(root).optJSONArray("playlists") ?: JSONArray()
-        return buildList {
-            for (index in 0 until array.length()) {
-                val item = array.optJSONObject(index) ?: continue
-                val name = item.optString("playlist_name").trim()
-                val url = item.optString("playlist_url").trim()
-                if (name.isNotEmpty() && url.isNotEmpty()) add(Playlist("list-$index", name, url))
-            }
-        }.take(4)
-    }
-}
-
-/** Configuração explícita para que endpoints legítimos sejam fornecidos pelo integrador. */
+/** Configuração da integração definida pelo guia do backend Rencia. */
 data class ApiConfig(
-    val portalMain: String = "",
-    val epgMain: String = "",
-    val upgradeMain: String = "",
-    val noticeMain: String = "",
-    val adsMain: String = "",
-    val playlistsUrl: String = ""
+    val baseUrl: String = "https://renciaapp.manus.space",
+    val updateUrl: String = "",
+    val appVersion: String = "0.2.0-prestigie",
+    val deviceType: String = "prestigie",
+    val useDemoData: Boolean = false
 )
 
 /** Até cinco servidores DNS podem ser configurados pelo produto que integrar este scaffold. */

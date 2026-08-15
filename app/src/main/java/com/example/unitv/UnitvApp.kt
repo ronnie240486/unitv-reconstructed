@@ -87,6 +87,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.delay
 
@@ -195,8 +196,8 @@ private fun DeviceIdentityScreen(vm: UnitvViewModel, onContinue: () -> Unit) {
                         Button(
                             onClick = {
                                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                clipboard.setPrimaryClip(ClipData.newPlainText("MAC do aparelho", vm.deviceId))
-                                vm.showNotice("MAC copiado. Cole o valor no backend para vincular as listas.")
+                                clipboard.setPrimaryClip(ClipData.newPlainText("MAC do aparelho", vm.macAddress))
+                                vm.showNotice("MAC copiado no formato AA:BB:CC:DD:EE:FF. Cole o valor no backend para vincular as listas.")
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = PrestigieGold, contentColor = WineDark)
                         ) {
@@ -212,8 +213,18 @@ private fun DeviceIdentityScreen(vm: UnitvViewModel, onContinue: () -> Unit) {
                     }
                 }
             }
-            Text("O identificador é exibido em 12 caracteres hexadecimais.", color = TextMuted, fontSize = 12.sp)
-            Button(onClick = onContinue, colors = ButtonDefaults.buttonColors(containerColor = Color(0xCC8C5215), contentColor = Color.White)) {
+            Text("A tela exibe 12 caracteres; o botão Copiar usa o formato MAC do backend.", color = TextMuted, fontSize = 12.sp)
+            when {
+                vm.accessLoading -> Text("Validando aparelho no servidor…", color = TextMuted)
+                vm.deviceAccess?.allowed == true -> Text("Aparelho liberado · ${vm.deviceAccess?.status.orEmpty()}", color = Color(0xFF78E39A))
+                vm.deviceAccess != null -> Text("Acesso indisponível para este aparelho.", color = Color(0xFFFFB4AB))
+                vm.playlistsError != null -> Text(vm.playlistsError.orEmpty(), color = Color(0xFFFFB4AB))
+            }
+            Button(
+                onClick = onContinue,
+                enabled = ProductConfig.api.useDemoData || vm.deviceAccess?.allowed == true,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xCC8C5215), contentColor = Color.White)
+            ) {
                 Text("Continuar")
                 Spacer(Modifier.width(8.dp))
                 Icon(Icons.Default.ArrowForward, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -225,12 +236,21 @@ private fun DeviceIdentityScreen(vm: UnitvViewModel, onContinue: () -> Unit) {
 @Composable
 private fun PrestigieShell(vm: UnitvViewModel) {
     Box(modifier = Modifier.fillMaxSize()) {
-        Image(
-            painter = painterResource(R.drawable.prestigie_catalog_style),
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop
-        )
+        if (vm.visualConfig.backgroundUrl.isBlank()) {
+            Image(
+                painter = painterResource(R.drawable.prestigie_catalog_style),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            AsyncImage(
+                model = vm.visualConfig.backgroundUrl,
+                contentDescription = "Fundo configurado",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        }
         Box(modifier = Modifier.fillMaxSize().background(Color(0xC814060A)))
         Column(modifier = Modifier.fillMaxSize()) {
             TopBar(vm)
@@ -252,12 +272,21 @@ private fun TopBar(vm: UnitvViewModel) {
             .padding(horizontal = 28.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Image(
-            painter = painterResource(R.drawable.prestigie_logo),
-            contentDescription = "Prestigie",
-            modifier = Modifier.width(185.dp).height(52.dp),
-            contentScale = ContentScale.Fit
-        )
+        if (vm.visualConfig.logoUrl.isBlank()) {
+            Image(
+                painter = painterResource(R.drawable.prestigie_logo),
+                contentDescription = vm.visualConfig.appName,
+                modifier = Modifier.width(185.dp).height(52.dp),
+                contentScale = ContentScale.Fit
+            )
+        } else {
+            AsyncImage(
+                model = vm.visualConfig.logoUrl,
+                contentDescription = vm.visualConfig.appName,
+                modifier = Modifier.width(185.dp).height(52.dp),
+                contentScale = ContentScale.Fit
+            )
+        }
         Spacer(Modifier.width(24.dp))
         Button(
             onClick = { vm.openAccountScreen(AppScreen.PURCHASE) },
@@ -467,8 +496,8 @@ private fun PlaylistScreen(vm: UnitvViewModel) {
                     }
                     OutlinedButton(onClick = {
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        clipboard.setPrimaryClip(ClipData.newPlainText("MAC do aparelho", vm.deviceId))
-                        vm.showNotice("MAC copiado para a área de transferência.")
+                        clipboard.setPrimaryClip(ClipData.newPlainText("MAC do aparelho", vm.macAddress))
+                        vm.showNotice("MAC copiado no formato AA:BB:CC:DD:EE:FF.")
                     }) {
                         Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(7.dp))

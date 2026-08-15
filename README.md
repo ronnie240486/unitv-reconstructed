@@ -8,11 +8,11 @@ Este repositório contém uma **reimplementação limpa e demonstrativa** da sup
 
 A base Android nativa em Kotlin/Jetpack Compose implementa a marca **Prestigie** e navegação em paisagem com as áreas observadas no manifesto: **Início**, **Ao vivo**, **Filmes e séries**, **Esportes** e **Perfil**. Também inclui telas demonstrativas de busca, detalhes VOD, login local, planos, cupons, segurança da conta e configurações.
 
-A camada de dados usa `DemoContentRepository`, com modelos para canais, programação, VOD, partidas, planos, cupons e sessão. As interfaces `ContentRepository`, `PlayerGateway` e `ApiConfig` permitem conectar posteriormente um backend e um player legítimos, sem reutilizar os serviços do APK analisado. `DnsConfig` aceita até cinco servidores DNS para futuras integrações autorizadas.
+A camada de dados usa `DemoContentRepository` apenas para conteúdo de demonstração. A integração de produção usa `RenciaBackend`, `DeviceIdentity`, `ContentRepository`, `PlayerGateway` e `ApiConfig` para validar acesso, buscar fontes, consultar avisos, enviar heartbeat e processar comandos remotos conforme `docs/backend-guide-analysis.md`. `DnsConfig` aceita até cinco servidores DNS para integrações autorizadas.
 
 ## O que não está implementado
 
-O projeto não contém autenticação real, checkout, reprodução de streams, push, telemetria, atualização automática, decodificação do payload protegido, bypass de licenças, engenharia reversa dinâmica, nem chamadas para os domínios encontrados no pacote. Os valores exibidos são fictícios e servem somente para validar a arquitetura e a navegação.
+O projeto não contém checkout, reprodução de streams, decodificação do payload protegido, bypass de licenças ou engenharia reversa dinâmica. A integração Rencia está implementada, mas credenciais, player e URL de atualização continuam dependentes das configurações autorizadas do produto. O conteúdo local só aparece quando `ProductConfig.api.useDemoData` é explicitamente habilitado.
 
 ## Estrutura
 
@@ -42,4 +42,4 @@ A análise foi limitada a metadados, manifesto, recursos e comportamento observ�
 
 Após a apresentação Prestigie, o aplicativo exibe o identificador disponível no aparelho em 12 caracteres hexadecimais e oferece o botão **Copiar**. O valor pode ser cadastrado no backend. A aba **Home** substitui a antiga aba Grátis, e o botão de conta do cabeçalho foi substituído por **Listas**, onde o usuário pode escolher entre uma e quatro playlists.
 
-A integração remota está centralizada em `ProductConfig.api.playlistsUrl`. O endpoint recebe `?mac=001122AABBCC` e deve retornar `playlist_name` e `playlist_url`, conforme `docs/playlist-backend-contract.md`. Com a URL vazia, o APK usa quatro listas demonstrativas locais para permitir validar a interface sem um servidor.
+A integração remota está centralizada em `ProductConfig.api`, com base `https://renciaapp.manus.space`. O APK valida o aparelho em `/api/device/check`, carrega fontes em `/api/guim.php`, usa até quatro itens de `data[]`, envia heartbeat a cada 60 segundos, consulta avisos/comandos e aplica a configuração visual opcional. O botão Copiar mostra 12 caracteres na tela, mas copia o MAC no formato `AA:BB:CC:DD:EE:FF`. Para testes locais, habilite explicitamente `useDemoData` em `ProductConfig`.

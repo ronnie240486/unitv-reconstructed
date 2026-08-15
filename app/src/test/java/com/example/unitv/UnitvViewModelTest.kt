@@ -22,6 +22,7 @@ class UnitvViewModelTest {
     @Test
     fun deviceIdentityAlwaysReturnsTwelveHexCharacters() {
         assertEquals("001122AABBCC", DeviceIdentity.normalize12("00:11:22:aa:bb:cc"))
+        assertEquals("00:11:22:AA:BB:CC", DeviceIdentity.toMac("001122AABBCC"))
         assertEquals(12, DeviceIdentity.normalize12("abc").length)
     }
 

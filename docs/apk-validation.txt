@@ -7,8 +7,8 @@ application-icon-320:'res/drawable/prestigie_icon.png'
 application-icon-480:'res/drawable/prestigie_icon.png'
 application-icon-640:'res/drawable/prestigie_icon.png'
 application-icon-65534:'res/drawable/prestigie_icon.png'
-5e489d7774cd09505b377c58a772cbefc8443a634ec2f9ffe36870101c15da29  app/build/outputs/apk/debug/app-debug.apk
+7b5249e574d27013e537585492cc56a9ff533573a4cf4057ca05e2d6ed49d60f  app/build/outputs/apk/debug/app-debug.apk
 Build: SUCCESS
 Testes: testDebugUnitTest concluído
-Fluxo: identificador de 12 caracteres, Copiar, Home e seletor de até quatro listas
-Backend: GET ?mac=... com playlist_name e playlist_url
+Backend: Rencia HTTPS /api/device/check, /api/guim.php, /api/v5/ultra-config, heartbeat, notificações, comandos e playback-failure
+MAC: tela compacta com 12 caracteres; chamadas e clipboard em AA:BB:CC:DD:EE:FF

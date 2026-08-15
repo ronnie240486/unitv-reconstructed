@@ -1,11 +1,12 @@
 package com.example.unitv
 
-/**
- * Configuração do produto. Preencha playlistsUrl com o endpoint autorizado do seu backend.
- * Enquanto estiver vazio, o APK usa as quatro playlists demonstrativas locais.
- */
+/** Configuração de produção do aplicativo Prestigie. */
 object ProductConfig {
     val api: ApiConfig = ApiConfig(
-        playlistsUrl = ""
+        baseUrl = "https://renciaapp.manus.space",
+        updateUrl = "",
+        appVersion = "0.2.0-prestigie",
+        deviceType = "prestigie",
+        useDemoData = false
     )
 }

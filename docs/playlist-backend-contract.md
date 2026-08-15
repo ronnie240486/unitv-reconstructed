@@ -1,41 +1,61 @@
-# Contrato do backend de playlists
+# Contrato de playlists — Backend Rencia
 
-O aplicativo envia o identificador normalizado com 12 caracteres hexadecimais no parâmetro `mac`.
+## Identificação
 
-## Requisição
+Todas as chamadas usam HTTPS e o MAC deve ser enviado no formato `AA:BB:CC:DD:EE:FF`. A tela pode exibir os 12 caracteres compactos, mas o botão **Copiar** e as chamadas ao backend usam o formato com dois-pontos.
+
+## Validação antes da Home
 
 ```http
-GET https://SEU-DOMINIO.example/api/playlists?mac=001122AABBCC
-Accept: application/json
+GET https://renciaapp.manus.space/api/device/check?mac=AA:BB:CC:DD:EE:FF
 ```
 
-A URL é configurada no `ApiConfig.playlistsUrl`. Quando ela estiver vazia, o APK utiliza quatro listas locais demonstrativas para permitir testar a tela sem backend.
+O APK verifica `found`, `allowed`, `status`, `app`, `urlM3u8`, `urlEpg` e `dataExpiracao`. Quando `allowed` for falso, o aplicativo não libera reprodução e mostra somente uma mensagem amigável.
 
-## Resposta aceita
+## Fontes/listas
 
-A resposta pode ser um array JSON diretamente ou um objeto com a propriedade `playlists`. O aplicativo considera somente os quatro primeiros itens válidos.
+```http
+GET https://renciaapp.manus.space/api/guim.php?mac=AA:BB:CC:DD:EE:FF
+```
+
+Os aliases `/api/v4/guim.php` e `/api/v5/guim.php` são compatíveis. O formato esperado é:
 
 ```json
 {
-  "playlists": [
+  "data": [
     {
-      "playlist_name": "Lista principal",
-      "playlist_url": "https://seu-dominio.example/playlist/001122AABBCC/main"
-    },
-    {
-      "playlist_name": "Filmes e séries",
-      "playlist_url": "https://seu-dominio.example/playlist/001122AABBCC/vod"
+      "id": 123,
+      "mac": "AA:BB:CC:DD:EE:FF",
+      "url": "https://servidor.exemplo.com",
+      "username": "usuario",
+      "password": "senha",
+      "type": "xtream"
     }
   ]
 }
 ```
 
-Os nomes dos campos devem ser exatamente `playlist_name` e `playlist_url`. Itens sem nome ou URL são ignorados. A URL retornada deve ser HTTPS e deve apontar para uma playlist que o `PlayerGateway`/adaptador de conteúdo autorizado consiga consumir.
+O APK apresenta até quatro fontes devolvidas pelo painel como listas selecionáveis. O nome exibido é gerado como “Lista 1”, “Lista 2” etc. quando o objeto não possuir um campo de nome. Senhas não são exibidas nem registradas em logs.
 
-## Fluxo dentro do APK
+## Presença e conteúdo
 
-Depois da apresentação, o APK lê o identificador disponível no aparelho, normaliza para 12 caracteres, exibe o valor e permite copiá-lo. O usuário cadastra esse valor no backend. Ao tocar em **Atualizar listas**, o aplicativo consulta o endpoint e exibe até quatro opções na tela **Listas**. A lista escolhida fica marcada como ativa e pode ser usada pelos adaptadores de conteúdo.
+O APK envia `GET /api/v5/heartbeat?mac=...` ao iniciar, ao trocar de conteúdo e a cada 60 segundos. Quando houver conteúdo atual, acrescenta `current_content` sem enviá-lo vazio.
 
-## Observação sobre Android
+## Avisos, vencimento e failover
 
-Em versões modernas do Android, o sistema pode não liberar o endereço MAC físico para aplicativos comuns. Por isso, o código tenta primeiro uma interface de rede disponível e, quando o sistema não expõe o MAC, usa um identificador estável de fallback normalizado para 12 caracteres. Se o seu backend exigir exclusivamente o MAC físico, essa restrição precisa ser tratada por um identificador fornecido pelo fabricante, por uma API do dispositivo ou por um fluxo de ativação próprio.
+A rota `GET /api/v5/list-notifications?mac=...` é consultada junto do heartbeat. Alertas são apresentados uma vez por `id` e confirmados com:
+
+```http
+POST /api/v5/list-notifications/ack
+Content-Type: application/json
+
+{"mac":"AA:BB:CC:DD:EE:FF","alert_id":123}
+```
+
+Quando `playlist_sync_required` estiver ativo, o APK busca novamente `/api/guim.php` e atualiza as listas sem fechar. Erros reais de reprodução são enviados a `POST /api/v5/playback-failure` com `mac` e `active_list_number`.
+
+## Configuração visual e comandos
+
+A identidade visual opcional vem de `GET /api/v5/ultra-config?mac=...`, incluindo `app_name`, logo, banner, fundo e ícones. O APK usa esses URLs quando preenchidos e mantém os assets Prestigie como fallback.
+
+Comandos remotos são consultados em `GET /api/v5/remote-commands?mac=...` e confirmados em `/api/v5/remote-commands/ack`. O cliente reconhece atualização/troca de lista, sincronização de acesso, mensagem, reinício do player e atualização de DNS conforme os adaptadores disponíveis.

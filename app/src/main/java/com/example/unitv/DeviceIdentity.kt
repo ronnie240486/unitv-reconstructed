@@ -15,6 +15,8 @@ object DeviceIdentity {
         return normalize12(androidId)
     }
 
+    fun toMac(compact: String): String = normalize12(compact).chunked(2).joinToString(":")
+
     fun normalize12(raw: String): String {
         val hex = raw.filter { it in "0123456789abcdefABCDEF" }.uppercase()
         return when {
