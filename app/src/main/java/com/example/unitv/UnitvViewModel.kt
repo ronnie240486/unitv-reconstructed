@@ -69,6 +69,8 @@ class UnitvViewModel(
         private set
     var catalogLoading by mutableStateOf(false)
         private set
+    var catalogProgress by mutableStateOf(CatalogLoadProgress())
+        private set
     var catalogReady by mutableStateOf(false)
         private set
     var catalogError by mutableStateOf<String?>(null)
@@ -257,8 +259,11 @@ class UnitvViewModel(
         catalogReady = false
         catalogLoading = true
         catalogError = null
+        catalogProgress = CatalogLoadProgress()
         try {
-            val loaded = catalogClient.load(playlist)
+            val loaded = catalogClient.load(playlist) { progress ->
+                catalogProgress = progress
+            }
             if (loaded.total > 0) {
                 catalog = loaded
                 catalogError = null

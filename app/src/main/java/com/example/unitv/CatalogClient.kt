@@ -2,6 +2,8 @@ package com.example.unitv
 
 import android.util.JsonReader
 import android.util.JsonToken
+import java.io.FilterInputStream
+import java.io.InputStream
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URLEncoder
@@ -15,20 +17,28 @@ import org.json.JSONObject
  * O limite evita que uma fonte com milhões de itens derrube dispositivos móveis.
  */
 class CatalogClient {
-    suspend fun load(playlist: Playlist): CatalogSnapshot = withContext(Dispatchers.IO) {
+    suspend fun load(
+        playlist: Playlist,
+        onProgress: (CatalogLoadProgress) -> Unit = {}
+    ): CatalogSnapshot = withContext(Dispatchers.IO) {
+        onProgress(CatalogLoadProgress())
         if (playlist.directM3uUrl.isNotBlank()) {
-            val direct = runCatching { loadM3u(playlist.directM3uUrl) }.getOrNull()
-            direct?.takeIf { it.total > 0 } ?: loadFromFallbackCandidates(playlist)
+            val direct = runCatching { loadM3u(playlist.directM3uUrl, onProgress) }.getOrNull()
+            direct?.takeIf { it.total > 0 } ?: loadFromFallbackCandidates(playlist, onProgress)
         } else {
-            loadFromFallbackCandidates(playlist)
+            loadFromFallbackCandidates(playlist, onProgress)
         }
     }
 
-    private fun loadFromFallbackCandidates(playlist: Playlist): CatalogSnapshot {
+    private fun loadFromFallbackCandidates(
+        playlist: Playlist,
+        onProgress: (CatalogLoadProgress) -> Unit
+    ): CatalogSnapshot {
         for (candidate in m3uCandidates(playlist)) {
-            val parsed = runCatching { loadM3u(candidate) }.getOrNull()
+            val parsed = runCatching { loadM3u(candidate, onProgress) }.getOrNull()
             if (parsed != null && parsed.total > 0) return parsed
         }
+        onProgress(CatalogLoadProgress(percent = 99, estimated = true))
         return runCatching { loadXtream(playlist) }.getOrElse { CatalogSnapshot() }
     }
 
@@ -112,17 +122,19 @@ class CatalogClient {
         return CatalogSnapshot(live = live, movies = movies, series = series)
     }
 
-    private fun loadM3u(url: String): CatalogSnapshot {
+        private fun loadM3u(url: String, onProgress: (CatalogLoadProgress) -> Unit): CatalogSnapshot {
         val connection = open(url).apply { requestMethod = "GET" }
         return try {
-            val stream = responseStream(connection)
-            InputStreamReader(stream, Charsets.UTF_8).use { parseM3u(it) }
+            val tracker = ProgressTracker(connection.contentLengthLong, onProgress)
+            val stream = CountingInputStream(responseStream(connection), tracker)
+            InputStreamReader(stream, Charsets.UTF_8).use { parseM3u(it, tracker) }
+                .also { tracker.finish() }
         } finally {
             connection.disconnect()
         }
     }
+    private fun parseM3u(reader: InputStreamReader, tracker: ProgressTracker): CatalogSnapshot {
 
-    private fun parseM3u(reader: InputStreamReader): CatalogSnapshot {
         val live = mutableListOf<CatalogItem>()
         val movies = mutableListOf<CatalogItem>()
         val series = mutableListOf<CatalogItem>()
@@ -180,6 +192,7 @@ class CatalogClient {
                 }
             }
             total++
+            tracker.onItem(total)
             index++
             metadata = ""
             image = ""
@@ -383,6 +396,69 @@ class CatalogClient {
 
     private fun encode(value: String): String = URLEncoder.encode(value, Charsets.UTF_8.name())
 
+    private class ProgressTracker(
+        private val totalBytes: Long,
+        private val callback: (CatalogLoadProgress) -> Unit
+    ) {
+        private val startedAt = System.currentTimeMillis()
+        private var lastReportAt = 0L
+        private var bytesRead = 0L
+        private var itemsRead = 0
+
+        fun onBytes(count: Int) {
+            if (count <= 0) return
+            bytesRead += count
+            report()
+        }
+
+        fun onItem(count: Int) {
+            itemsRead = count
+            report(force = true)
+        }
+
+        fun finish() {
+            val elapsed = elapsedSeconds()
+            callback(CatalogLoadProgress(100, elapsed, 0, estimated = false))
+        }
+
+        private fun report(force: Boolean = false) {
+            val now = System.currentTimeMillis()
+            if (!force && now - lastReportAt < 350) return
+            lastReportAt = now
+            val elapsed = elapsedSeconds()
+            val knownSize = totalBytes > 0
+            val percent = if (knownSize) {
+                ((bytesRead * 100L) / totalBytes).toInt().coerceIn(0, 99)
+            } else {
+                (itemsRead / UNKNOWN_ITEM_ESTIMATE.toDouble() * 100).toInt().coerceIn(0, 95)
+            }
+            val remaining = if (percent > 0) {
+                (elapsed * (100 - percent) / percent).coerceAtLeast(0)
+            } else null
+            callback(CatalogLoadProgress(percent, elapsed, remaining, estimated = !knownSize))
+        }
+
+        private fun elapsedSeconds(): Long =
+            ((System.currentTimeMillis() - startedAt) / 1000L).coerceAtLeast(0)
+    }
+
+    private class CountingInputStream(
+        input: InputStream,
+        private val tracker: ProgressTracker
+    ) : FilterInputStream(input) {
+        override fun read(): Int {
+            val value = super.read()
+            if (value >= 0) tracker.onBytes(1)
+            return value
+        }
+
+        override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+            val count = super.read(buffer, offset, length)
+            if (count > 0) tracker.onBytes(count)
+            return count
+        }
+    }
+
     private fun attribute(line: String, name: String): String {
         val prefix = "$name=\""
         val start = line.indexOf(prefix, ignoreCase = true)
@@ -435,5 +511,6 @@ class CatalogClient {
         const val MAX_VOD_ITEMS = 500_000
         const val MAX_M3U_ITEMS = 500_000
         const val MAX_EPISODES = 500
+        const val UNKNOWN_ITEM_ESTIMATE = 100_000
     }
 }

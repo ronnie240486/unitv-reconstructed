@@ -27,6 +27,13 @@ data class SeriesEpisode(
     val streamUrl: String = ""
 )
 
+data class CatalogLoadProgress(
+    val percent: Int = 0,
+    val elapsedSeconds: Long = 0,
+    val remainingSeconds: Long? = null,
+    val estimated: Boolean = false
+)
+
 data class CatalogSnapshot(
     val live: List<CatalogItem> = emptyList(),
     val movies: List<CatalogItem> = emptyList(),

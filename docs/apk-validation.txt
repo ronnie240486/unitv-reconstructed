@@ -1,4 +1,4 @@
-package: name='com.example.prestigie.reconstructed' versionCode='11' versionName='0.3.6-auto-device-check' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
+package: name='com.example.prestigie.reconstructed' versionCode='12' versionName='0.3.7-progress' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
 application-label:'Prestigie'
 application-icon-120:'res/drawable/prestigie_icon.png'
 application-icon-160:'res/drawable/prestigie_icon.png'
@@ -7,10 +7,9 @@ application-icon-320:'res/drawable/prestigie_icon.png'
 application-icon-480:'res/drawable/prestigie_icon.png'
 application-icon-640:'res/drawable/prestigie_icon.png'
 application-icon-65534:'res/drawable/prestigie_icon.png'
-28298ea1a5acdb56cca6ae6f6a2cfaa73c394103beca4ab4a0601c010e69cb67  app/build/outputs/apk/debug/app-debug.apk
+bbe418fe23300c2e556b85a241d552f61de5705e7937ce2b57a4c4e51dae5da4  /home/ubuntu/unitv_progress_work/app/build/outputs/apk/debug/app-debug.apk
 Build: SUCCESS
 Testes: testDebugUnitTest concluído
-MAC: conferência automática na abertura, sem depender de copiar
-Estados: validação, listas do painel e importação M3U separados
-Retries: polling automático preservado
-Versão: 0.3.6-auto-device-check / versionCode 11
+Progresso: percentual por bytes quando disponível e estimativa por itens quando necessário
+Mensagem: código enviado ao revendedor para ativar o acesso
+Versão: 0.3.7-progress / versionCode 12

@@ -69,6 +69,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -112,6 +113,13 @@ private val WineDark = Color(0xFF16060A)
 private val WinePanel = Color(0xB51F0A12)
 private val TextMuted = Color(0xFFC7B9BC)
 private val FocusBlue = Color(0xFF9FD5FF)
+
+private fun formatDuration(seconds: Long): String {
+    val safe = seconds.coerceAtLeast(0)
+    val minutes = safe / 60
+    val remaining = safe % 60
+    return "%02d:%02d".format(minutes, remaining)
+}
 
 private data class HeaderAction(val icon: ImageVector, val label: String, val action: () -> Unit)
 
@@ -210,7 +218,7 @@ private fun DeviceIdentityScreen(vm: UnitvViewModel, onContinue: () -> Unit) {
                 contentScale = ContentScale.Fit
             )
             Text("Ative seu aparelho", color = Color.White, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            Text("Copie o identificador abaixo e cadastre-o no seu backend para liberar as listas.", color = TextMuted, fontSize = 15.sp)
+            Text("Copie este código e envie ao seu revendedor para ativar seu acesso.", color = TextMuted, fontSize = 15.sp)
             Card(colors = CardDefaults.cardColors(containerColor = WinePanel), shape = RoundedCornerShape(16.dp)) {
                 Column(Modifier.padding(26.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("MAC / ID DO APARELHO", color = PrestigieGold, fontSize = 12.sp, letterSpacing = 2.sp)
@@ -238,7 +246,34 @@ private fun DeviceIdentityScreen(vm: UnitvViewModel, onContinue: () -> Unit) {
             when {
                 vm.accessLoading -> Text("Validando aparelho no servidor…", color = TextMuted)
                 vm.deviceAccess?.allowed == true && vm.playlistsLoading && !vm.catalogLoading -> Text("Aparelho reconhecido · carregando listas do painel…", color = PrestigieGold)
-                vm.deviceAccess?.allowed == true && vm.catalogLoading -> Text("Importando canais, filmes, séries e categorias da M3U…", color = PrestigieGold)
+                vm.deviceAccess?.allowed == true && vm.catalogLoading -> {
+                    val progress = vm.catalogProgress
+                    val percent = progress.percent.coerceIn(0, 100)
+                    Column(
+                        modifier = Modifier.fillMaxWidth(0.92f),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text("Importando conteúdo… $percent%", color = PrestigieGold, fontWeight = FontWeight.SemiBold)
+                        LinearProgressIndicator(
+                            progress = percent / 100f,
+                            modifier = Modifier.fillMaxWidth().height(7.dp).clip(RoundedCornerShape(8.dp)),
+                            color = PrestigieGold,
+                            trackColor = Color(0x663F2225)
+                        )
+                        val remaining = progress.remainingSeconds
+                        val timeLabel = if (remaining != null) {
+                            "Tempo decorrido ${formatDuration(progress.elapsedSeconds)} · faltam aproximadamente ${formatDuration(remaining)}"
+                        } else {
+                            "Tempo decorrido ${formatDuration(progress.elapsedSeconds)} · calculando o tempo restante"
+                        }
+                        Text(
+                            if (progress.estimated) "$timeLabel · progresso estimado" else timeLabel,
+                            color = TextMuted,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
                 vm.deviceAccess?.allowed == true && vm.catalogError != null -> Text(vm.catalogError.orEmpty(), color = Color(0xFFFFB4AB))
                 vm.deviceAccess?.allowed == true && vm.catalogReady -> Text("Aparelho liberado · catálogo carregado", color = Color(0xFF78E39A))
                 vm.deviceAccess != null -> Text("Acesso indisponível para este aparelho.", color = Color(0xFFFFB4AB))
