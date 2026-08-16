@@ -151,10 +151,10 @@ fun UnitvApp(vm: UnitvViewModel = viewModel()) {
         }
     }
     LaunchedEffect(vm.deviceAccess?.allowed, vm.playlists, vm.catalogReady, vm.catalogLoading, vm.catalogError, vm.catalogProgress.percent, vm.catalogProgress.itemsRead) {
-        val hasVisibleCatalog = vm.catalog.publicTotal > 0
-        if ((vm.accessLoading || vm.playlistsLoading || (vm.catalogLoading && !vm.catalogReady)) && !hasVisibleCatalog) {
+        val hasCompleteCatalog = vm.catalog.hasCoreContent
+        if ((vm.accessLoading || vm.playlistsLoading || vm.catalogLoading) && !hasCompleteCatalog) {
             showDeviceSetup = true
-        } else if ((vm.deviceAccess?.allowed == true || ProductConfig.api.useDemoData) && vm.playlists.isNotEmpty() && vm.catalogReady && hasVisibleCatalog && vm.catalogError == null) {
+        } else if ((vm.deviceAccess?.allowed == true || ProductConfig.api.useDemoData) && vm.playlists.isNotEmpty() && vm.catalogReady && hasCompleteCatalog && vm.catalogError == null) {
             delay(350)
             showDeviceSetup = false
             vm.backHome()

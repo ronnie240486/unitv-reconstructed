@@ -53,4 +53,7 @@ data class CatalogSnapshot(
 
     val publicTotal: Int
         get() = live.size + movies.size + series.size + kids.size + anime.size
+
+    val hasCoreContent: Boolean
+        get() = live.isNotEmpty() && movies.isNotEmpty() && series.isNotEmpty()
 }

@@ -1,4 +1,4 @@
-package: name='com.example.prestigie.reconstructed' versionCode='21' versionName='0.4.0-paged-catalog' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
+package: name='com.example.prestigie.reconstructed' versionCode='22' versionName='0.4.1-full-catalog-gate' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
 application-label:'Prestigie'
 application-icon-120:'res/drawable/prestigie_icon.png'
 application-icon-160:'res/drawable/prestigie_icon.png'
@@ -7,11 +7,10 @@ application-icon-320:'res/drawable/prestigie_icon.png'
 application-icon-480:'res/drawable/prestigie_icon.png'
 application-icon-640:'res/drawable/prestigie_icon.png'
 application-icon-65534:'res/drawable/prestigie_icon.png'
-1c36aa569e2fd333a835f6af2aa3948425d68ad6f5e2fc9957f95f7948f59640  app/build/outputs/apk/debug/app-debug.apk
+22a01cfffe67aa6579805800ca667956a4be8fcd0d61a9c77fa34910f0851445  app/build/outputs/apk/debug/app-debug.apk
 Build: SUCCESS
 Testes: testDebugUnitTest concluído
-Catálogo: primeiro lote parcial liberado a partir de 120 entradas
-Grade: 48 cards iniciais e mais 48 ao rolar
-Capas: AsyncImage somente nos cards compostos/visíveis
-Sincronização: restante da M3U continua em segundo plano
-Versão: 0.4.0-paged-catalog / versionCode 21
+Gate: TV só libera com canais, filmes e séries completos
+Progresso: sem primeiro-lote liberando a interface
+Cache: só substituído após catálogo completo e gravação concluída
+Versão: 0.4.1-full-catalog-gate / versionCode 22

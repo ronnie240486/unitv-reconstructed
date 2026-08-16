@@ -277,7 +277,7 @@ class UnitvViewModel(
         catalogError = null
         catalogProgress = CatalogLoadProgress()
         val cached = appContext?.let { CatalogCache.load(it, playlist.id) }
-        if (cached != null && cached.total > 0) {
+        if (cached != null && cached.hasCoreContent) {
             catalog = cached
             catalogReady = true
             // Mantém catalogLoading=true enquanto a atualização da fonte ocorre; o cache serve como fallback.
@@ -288,15 +288,8 @@ class UnitvViewModel(
             val loaded = catalogClient.load(
                 playlist,
                 onProgress = { progress -> catalogProgress = progress },
-                onPartial = { partial ->
-                    if (partial.publicTotal > 0) {
-                        catalog = partial
-                        catalogReady = true
-                        catalogError = null
-                    }
-                }
             )
-            if (loaded.total > 0) {
+            if (loaded.hasCoreContent) {
                 catalog = loaded
                 catalogError = null
                 catalogReady = true
@@ -324,14 +317,14 @@ class UnitvViewModel(
                     estimated = false
                 )
                 catalogLoading = false
-            } else if (cached == null) {
-                catalogError = "A lista respondeu sem canais, filmes ou séries."
+            } else if (cached == null || !cached.hasCoreContent) {
+                catalogError = "A lista ainda não entregou canais, filmes e séries completos."
             }
         } catch (_: Exception) {
             if (cached == null) catalogError = "Não foi possível carregar o conteúdo da lista."
         } finally {
-            catalogReady = catalog.total > 0 && catalogError == null
-            catalogLoading = false
+            catalogReady = catalog.hasCoreContent && catalogError == null
+            catalogLoading = !catalogReady
         }
     }
 
