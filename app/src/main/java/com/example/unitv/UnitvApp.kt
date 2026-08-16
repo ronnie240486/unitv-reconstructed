@@ -290,18 +290,32 @@ private fun DeviceIdentityScreen(vm: UnitvViewModel, onContinue: () -> Unit) {
                 vm.deviceAccess?.allowed == true && vm.catalogLoading -> {
                     val progress = vm.catalogProgress
                     val percent = progress.percent.coerceIn(0, 100)
+                    val processing = progress.stage.contains("Processando", true) || progress.stage.contains("Salvando", true) || progress.stage.contains("Preparando", true)
                     Column(
                         modifier = Modifier.fillMaxWidth(0.92f),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text("Importando conteúdo… $percent%", color = PrestigieGold, fontWeight = FontWeight.SemiBold)
-                        LinearProgressIndicator(
-                            progress = percent / 100f,
-                            modifier = Modifier.fillMaxWidth().height(7.dp).clip(RoundedCornerShape(8.dp)),
+                        Text(
+                            if (processing) "${progress.stage} · ${progress.itemsRead} itens"
+                            else "${progress.stage} · $percent%",
                             color = PrestigieGold,
-                            trackColor = Color(0x663F2225)
+                            fontWeight = FontWeight.SemiBold
                         )
+                        if (processing || progress.estimated || percent <= 0) {
+                            LinearProgressIndicator(
+                                modifier = Modifier.fillMaxWidth().height(7.dp).clip(RoundedCornerShape(8.dp)),
+                                color = PrestigieGold,
+                                trackColor = Color(0x663F2225)
+                            )
+                        } else {
+                            LinearProgressIndicator(
+                                progress = percent / 100f,
+                                modifier = Modifier.fillMaxWidth().height(7.dp).clip(RoundedCornerShape(8.dp)),
+                                color = PrestigieGold,
+                                trackColor = Color(0x663F2225)
+                            )
+                        }
                         val remaining = progress.remainingSeconds
                         val timeLabel = if (remaining != null) {
                             "Tempo decorrido ${formatDuration(progress.elapsedSeconds)} · faltam aproximadamente ${formatDuration(remaining)}"
@@ -309,7 +323,7 @@ private fun DeviceIdentityScreen(vm: UnitvViewModel, onContinue: () -> Unit) {
                             "Tempo decorrido ${formatDuration(progress.elapsedSeconds)} · calculando o tempo restante"
                         }
                         Text(
-                            if (progress.estimated) "$timeLabel · progresso estimado" else timeLabel,
+                            if (progress.itemsRead > 0) "$timeLabel · ${progress.itemsRead} itens processados" else timeLabel,
                             color = TextMuted,
                             fontSize = 12.sp
                         )

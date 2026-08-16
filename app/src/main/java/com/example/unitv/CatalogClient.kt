@@ -21,7 +21,7 @@ class CatalogClient {
         playlist: Playlist,
         onProgress: (CatalogLoadProgress) -> Unit = {}
     ): CatalogSnapshot = withContext(Dispatchers.IO) {
-        onProgress(CatalogLoadProgress())
+        onProgress(CatalogLoadProgress(stage = "Conectando ao servidor"))
         if (playlist.directM3uUrl.isNotBlank()) {
             val direct = runCatching { loadM3u(playlist.directM3uUrl, onProgress) }.getOrNull()
             direct?.takeIf { it.total > 0 } ?: loadFromFallbackCandidates(playlist, onProgress)
@@ -38,7 +38,7 @@ class CatalogClient {
             val parsed = runCatching { loadM3u(candidate, onProgress) }.getOrNull()
             if (parsed != null && parsed.total > 0) return parsed
         }
-        onProgress(CatalogLoadProgress(percent = 99, estimated = true))
+        onProgress(CatalogLoadProgress(stage = "Tentando outra fonte"))
         return runCatching { loadXtream(playlist) }.getOrElse { CatalogSnapshot() }
     }
 
@@ -438,6 +438,7 @@ class CatalogClient {
         private var lastReportAt = 0L
         private var bytesRead = 0L
         private var itemsRead = 0
+        private var stage = "Baixando catálogo"
 
         fun onBytes(count: Int) {
             if (count <= 0) return
@@ -447,12 +448,13 @@ class CatalogClient {
 
         fun onItem(count: Int) {
             itemsRead = count
+            stage = "Processando catálogo"
             report()
         }
 
         fun finish() {
-            val elapsed = elapsedSeconds()
-            callback(CatalogLoadProgress(100, elapsed, 0, estimated = false))
+            stage = "Preparando cache local"
+            report(force = true)
         }
 
         private fun report(force: Boolean = false) {
@@ -462,14 +464,13 @@ class CatalogClient {
             val elapsed = elapsedSeconds()
             val knownSize = totalBytes > 0
             val percent = if (knownSize) {
-                ((bytesRead * 100L) / totalBytes).toInt().coerceIn(0, 99)
-            } else {
-                (itemsRead / UNKNOWN_ITEM_ESTIMATE.toDouble() * 100).toInt().coerceIn(0, 95)
-            }
-            val remaining = if (percent > 0) {
-                (elapsed * (100 - percent) / percent).coerceAtLeast(0)
+                // Os últimos 10% ficam reservados para parsing e gravação do cache.
+                ((bytesRead * 90L) / totalBytes).toInt().coerceIn(0, 90)
+            } else 0
+            val remaining = if (knownSize && percent > 0) {
+                (elapsed * (90 - percent) / percent).coerceAtLeast(0)
             } else null
-            callback(CatalogLoadProgress(percent, elapsed, remaining, estimated = !knownSize))
+            callback(CatalogLoadProgress(percent, elapsed, remaining, estimated = !knownSize, itemsRead = itemsRead, stage = stage))
         }
 
         private fun elapsedSeconds(): Long =
@@ -545,6 +546,5 @@ class CatalogClient {
         const val MAX_VOD_ITEMS = 500_000
         const val MAX_M3U_ITEMS = 500_000
         const val MAX_EPISODES = 500
-        const val UNKNOWN_ITEM_ESTIMATE = 100_000
     }
 }

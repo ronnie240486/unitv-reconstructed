@@ -60,11 +60,13 @@ object CatalogCache {
         }.getOrNull()
     }
 
-    fun save(context: Context, playlistId: String, snapshot: CatalogSnapshot) {
+    fun save(context: Context, playlistId: String, snapshot: CatalogSnapshot, onProgress: (written: Int, total: Int) -> Unit = { _, _ -> }) {
         val file = cacheFile(context, playlistId)
         val temporary = File(file.parentFile, "${file.name}.tmp")
         runCatching {
             temporary.bufferedWriter(Charsets.UTF_8).use { writer ->
+                val totalRecords = snapshot.total + snapshot.seriesEpisodes.values.sumOf { it.size }
+                var writtenRecords = 0
                 fun writeItem(item: CatalogItem) {
                     val json = JSONObject()
                         .put("record", "item")
@@ -78,6 +80,8 @@ object CatalogCache {
                         .put("rating", item.rating ?: JSONObject.NULL)
                         .put("description", item.description)
                     writer.appendLine(json.toString())
+                    writtenRecords++
+                    if (writtenRecords == totalRecords || writtenRecords % 500 == 0) onProgress(writtenRecords, totalRecords)
                 }
                 snapshot.live.forEach(::writeItem)
                 snapshot.movies.forEach(::writeItem)
@@ -99,6 +103,8 @@ object CatalogCache {
                                 .put("streamUrl", episode.streamUrl)
                                 .toString()
                         )
+                        writtenRecords++
+                        if (writtenRecords == totalRecords || writtenRecords % 500 == 0) onProgress(writtenRecords, totalRecords)
                     }
                 }
             }

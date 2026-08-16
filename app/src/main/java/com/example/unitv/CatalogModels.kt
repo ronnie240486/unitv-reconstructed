@@ -34,7 +34,9 @@ data class CatalogLoadProgress(
     val percent: Int = 0,
     val elapsedSeconds: Long = 0,
     val remainingSeconds: Long? = null,
-    val estimated: Boolean = false
+    val estimated: Boolean = false,
+    val itemsRead: Int = 0,
+    val stage: String = "Preparando catálogo"
 )
 
 data class CatalogSnapshot(

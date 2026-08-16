@@ -1,4 +1,4 @@
-package: name='com.example.prestigie.reconstructed' versionCode='19' versionName='0.3.14-mac-sync-gate' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
+package: name='com.example.prestigie.reconstructed' versionCode='20' versionName='0.3.15-progress-final-stage' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
 application-label:'Prestigie'
 application-icon-120:'res/drawable/prestigie_icon.png'
 application-icon-160:'res/drawable/prestigie_icon.png'
@@ -7,9 +7,10 @@ application-icon-320:'res/drawable/prestigie_icon.png'
 application-icon-480:'res/drawable/prestigie_icon.png'
 application-icon-640:'res/drawable/prestigie_icon.png'
 application-icon-65534:'res/drawable/prestigie_icon.png'
-23323767762ee20413adf5c49c542fc59cdfb89c0c3b4d9863d9647b36a8ac6c  app/build/outputs/apk/debug/app-debug.apk
+9460bf40001c75688270adf347314530f1cc867d31703a6526103fe6ac7254af  app/build/outputs/apk/debug/app-debug.apk
 Build: SUCCESS
 Testes: testDebugUnitTest concluído
-Atualização: toda sincronização reabre a tela MAC
-Liberação: somente após catálogo válido, preservando cache anterior
-Versão: 0.3.14-mac-sync-gate / versionCode 19
+Progresso: download, processamento e cache com fases separadas
+95%: sem platô artificial; processamento mostra itens e barra indeterminada
+Cache: progresso instrumentado até o rename do arquivo local
+Versão: 0.3.15-progress-final-stage / versionCode 20

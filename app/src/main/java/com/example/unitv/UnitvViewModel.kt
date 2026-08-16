@@ -292,8 +292,30 @@ class UnitvViewModel(
                 catalog = loaded
                 catalogError = null
                 catalogReady = true
+                catalogProgress = catalogProgress.copy(
+                    percent = 91,
+                    stage = "Salvando catálogo local",
+                    itemsRead = loaded.total,
+                    estimated = false
+                )
+                appContext?.let { context ->
+                    CatalogCache.save(context, playlist.id, loaded) { written, total ->
+                        catalogProgress = catalogProgress.copy(
+                            percent = if (total > 0) (91 + (written * 8 / total)).coerceIn(91, 99) else 91,
+                            stage = "Salvando catálogo local",
+                            itemsRead = written,
+                            estimated = false
+                        )
+                    }
+                }
+                catalogProgress = catalogProgress.copy(
+                    percent = 100,
+                    stage = "Catálogo pronto",
+                    itemsRead = loaded.total,
+                    remainingSeconds = 0,
+                    estimated = false
+                )
                 catalogLoading = false
-                appContext?.let { context -> CatalogCache.save(context, playlist.id, loaded) }
             } else if (cached == null) {
                 catalogError = "A lista respondeu sem canais, filmes ou séries."
             }
