@@ -170,7 +170,22 @@ class UnitvViewModel(
                         catalogReady = false
                         catalogLoading = true
                         visualConfig = runCatching { service.fetchVisualConfig(macAddress) }.getOrDefault(visualConfig)
-                        val sources = service.fetchSources(macAddress)
+                        val panelSources = service.fetchSources(macAddress)
+                        val sources = if (panelSources.isNotEmpty()) {
+                            panelSources
+                        } else if (access.urlM3u8.isNotBlank()) {
+                            listOf(
+                                Playlist(
+                                    id = "device-access-m3u",
+                                    name = "Lista principal",
+                                    url = access.urlM3u8,
+                                    directM3uUrl = access.urlM3u8,
+                                    number = 1
+                                )
+                            )
+                        } else {
+                            emptyList()
+                        }
                         if (sources.isNotEmpty()) {
                             playlists = sources.mapIndexed { index, playlist ->
                                 playlist.copy(directM3uUrl = if (index == 0 && access.urlM3u8.isNotBlank()) access.urlM3u8 else playlist.directM3uUrl)
