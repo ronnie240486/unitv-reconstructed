@@ -50,4 +50,7 @@ data class CatalogSnapshot(
 ) {
     val total: Int
         get() = live.size + movies.size + series.size + kids.size + anime.size + adult.size
+
+    val publicTotal: Int
+        get() = live.size + movies.size + series.size + kids.size + anime.size
 }

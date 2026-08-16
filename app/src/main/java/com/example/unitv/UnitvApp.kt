@@ -32,6 +32,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -84,6 +85,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -102,6 +104,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import kotlinx.coroutines.flow.collect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.delay
 import androidx.media3.common.PlaybackException
@@ -147,11 +150,12 @@ fun UnitvApp(vm: UnitvViewModel = viewModel()) {
             globalParentalPinError = false
         }
     }
-    LaunchedEffect(vm.deviceAccess?.allowed, vm.playlists, vm.catalogReady, vm.catalogLoading, vm.catalogError, vm.catalogProgress.percent) {
-        if (vm.catalogLoading || vm.accessLoading || vm.playlistsLoading) {
+    LaunchedEffect(vm.deviceAccess?.allowed, vm.playlists, vm.catalogReady, vm.catalogLoading, vm.catalogError, vm.catalogProgress.percent, vm.catalogProgress.itemsRead) {
+        val hasVisibleCatalog = vm.catalog.publicTotal > 0
+        if ((vm.accessLoading || vm.playlistsLoading || (vm.catalogLoading && !vm.catalogReady)) && !hasVisibleCatalog) {
             showDeviceSetup = true
-        } else if ((vm.deviceAccess?.allowed == true || ProductConfig.api.useDemoData) && vm.playlists.isNotEmpty() && vm.catalogReady && vm.catalogError == null) {
-            delay(450)
+        } else if ((vm.deviceAccess?.allowed == true || ProductConfig.api.useDemoData) && vm.playlists.isNotEmpty() && vm.catalogReady && hasVisibleCatalog && vm.catalogError == null) {
+            delay(350)
             showDeviceSetup = false
             vm.backHome()
         }
@@ -655,8 +659,22 @@ private fun CatalogCard(item: CatalogItem, vm: UnitvViewModel) {
 @Composable
 private fun CatalogScreen(vm: UnitvViewModel, title: String, contentItems: List<CatalogItem>) {
     var activeCategory by remember(title) { mutableStateOf("Todos") }
-    val categories = listOf("Todos") + contentItems.map { it.category }.filter { it.isNotBlank() }.distinct()
+    var visibleLimit by remember(title) { mutableStateOf(48) }
+    val gridState = rememberLazyGridState()
+    val categories = listOf("Todos") + contentItems.asSequence().map { it.category }.filter { it.isNotBlank() }.distinct().toList()
     val filteredItems = if (activeCategory == "Todos") contentItems else contentItems.filter { it.category == activeCategory }
+    val visibleItems = filteredItems.take(visibleLimit)
+    LaunchedEffect(activeCategory, filteredItems.size) {
+        visibleLimit = 48
+        gridState.scrollToItem(0)
+    }
+    LaunchedEffect(gridState, filteredItems.size, visibleLimit) {
+        snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }.collect { lastVisible ->
+            if (lastVisible >= visibleLimit - 8 && visibleLimit < filteredItems.size) {
+                visibleLimit = minOf(visibleLimit + 48, filteredItems.size)
+            }
+        }
+    }
     ScreenFrame(title, "Conteúdo carregado da lista ativa", vm::backHome) {
         Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(end = 12.dp)) {
@@ -695,7 +713,7 @@ private fun CatalogScreen(vm: UnitvViewModel, title: String, contentItems: List<
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    gridItems(filteredItems) { item -> CatalogCard(item, vm) }
+                    gridItems(visibleItems) { item -> CatalogCard(item, vm) }
                 }
             }
         }
@@ -761,8 +779,22 @@ private fun PlaylistScreen(vm: UnitvViewModel) {
 private fun LiveScreen(vm: UnitvViewModel) {
     val liveItems = vm.catalog.live
     var activeCategory by remember(liveItems) { mutableStateOf("Todos") }
-    val categories = listOf("Todos") + liveItems.map { it.category }.filter { it.isNotBlank() }.distinct()
+    var visibleLimit by remember(liveItems, activeCategory) { mutableStateOf(48) }
+    val gridState = rememberLazyGridState()
+    val categories = listOf("Todos") + liveItems.asSequence().map { it.category }.filter { it.isNotBlank() }.distinct().toList()
     val filteredItems = if (activeCategory == "Todos") liveItems else liveItems.filter { it.category == activeCategory }
+    val visibleItems = filteredItems.take(visibleLimit)
+    LaunchedEffect(activeCategory, filteredItems.size) {
+        visibleLimit = 48
+        gridState.scrollToItem(0)
+    }
+    LaunchedEffect(gridState, filteredItems.size, visibleLimit) {
+        snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }.collect { lastVisible ->
+            if (lastVisible >= visibleLimit - 8 && visibleLimit < filteredItems.size) {
+                visibleLimit = minOf(visibleLimit + 48, filteredItems.size)
+            }
+        }
+    }
     ScreenFrame("Canais", "Todos os canais da lista ativa", vm::backHome) {
         Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(end = 12.dp)) {
@@ -787,7 +819,7 @@ private fun LiveScreen(vm: UnitvViewModel) {
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    gridItems(filteredItems) { item -> CatalogCard(item, vm) }
+                    gridItems(visibleItems) { item -> CatalogCard(item, vm) }
                 }
             }
         }

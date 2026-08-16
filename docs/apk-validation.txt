@@ -1,4 +1,4 @@
-package: name='com.example.prestigie.reconstructed' versionCode='20' versionName='0.3.15-progress-final-stage' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
+package: name='com.example.prestigie.reconstructed' versionCode='21' versionName='0.4.0-paged-catalog' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
 application-label:'Prestigie'
 application-icon-120:'res/drawable/prestigie_icon.png'
 application-icon-160:'res/drawable/prestigie_icon.png'
@@ -7,10 +7,11 @@ application-icon-320:'res/drawable/prestigie_icon.png'
 application-icon-480:'res/drawable/prestigie_icon.png'
 application-icon-640:'res/drawable/prestigie_icon.png'
 application-icon-65534:'res/drawable/prestigie_icon.png'
-9460bf40001c75688270adf347314530f1cc867d31703a6526103fe6ac7254af  app/build/outputs/apk/debug/app-debug.apk
+1c36aa569e2fd333a835f6af2aa3948425d68ad6f5e2fc9957f95f7948f59640  app/build/outputs/apk/debug/app-debug.apk
 Build: SUCCESS
 Testes: testDebugUnitTest concluído
-Progresso: download, processamento e cache com fases separadas
-95%: sem platô artificial; processamento mostra itens e barra indeterminada
-Cache: progresso instrumentado até o rename do arquivo local
-Versão: 0.3.15-progress-final-stage / versionCode 20
+Catálogo: primeiro lote parcial liberado a partir de 120 entradas
+Grade: 48 cards iniciais e mais 48 ao rolar
+Capas: AsyncImage somente nos cards compostos/visíveis
+Sincronização: restante da M3U continua em segundo plano
+Versão: 0.4.0-paged-catalog / versionCode 21

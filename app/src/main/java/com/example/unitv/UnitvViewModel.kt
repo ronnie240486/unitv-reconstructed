@@ -285,9 +285,17 @@ class UnitvViewModel(
             catalogProgress = CatalogLoadProgress(100, 0, 0, estimated = false)
         }
         try {
-            val loaded = catalogClient.load(playlist) { progress ->
-                catalogProgress = progress
-            }
+            val loaded = catalogClient.load(
+                playlist,
+                onProgress = { progress -> catalogProgress = progress },
+                onPartial = { partial ->
+                    if (partial.publicTotal > 0) {
+                        catalog = partial
+                        catalogReady = true
+                        catalogError = null
+                    }
+                }
+            )
             if (loaded.total > 0) {
                 catalog = loaded
                 catalogError = null

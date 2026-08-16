@@ -19,23 +19,25 @@ import org.json.JSONObject
 class CatalogClient {
     suspend fun load(
         playlist: Playlist,
-        onProgress: (CatalogLoadProgress) -> Unit = {}
+        onProgress: (CatalogLoadProgress) -> Unit = {},
+        onPartial: (CatalogSnapshot) -> Unit = {}
     ): CatalogSnapshot = withContext(Dispatchers.IO) {
         onProgress(CatalogLoadProgress(stage = "Conectando ao servidor"))
         if (playlist.directM3uUrl.isNotBlank()) {
-            val direct = runCatching { loadM3u(playlist.directM3uUrl, onProgress) }.getOrNull()
-            direct?.takeIf { it.total > 0 } ?: loadFromFallbackCandidates(playlist, onProgress)
+            val direct = runCatching { loadM3u(playlist.directM3uUrl, onProgress, onPartial) }.getOrNull()
+            direct?.takeIf { it.total > 0 } ?: loadFromFallbackCandidates(playlist, onProgress, onPartial)
         } else {
-            loadFromFallbackCandidates(playlist, onProgress)
+            loadFromFallbackCandidates(playlist, onProgress, onPartial)
         }
     }
 
     private fun loadFromFallbackCandidates(
         playlist: Playlist,
-        onProgress: (CatalogLoadProgress) -> Unit
+        onProgress: (CatalogLoadProgress) -> Unit,
+        onPartial: (CatalogSnapshot) -> Unit
     ): CatalogSnapshot {
         for (candidate in m3uCandidates(playlist)) {
-            val parsed = runCatching { loadM3u(candidate, onProgress) }.getOrNull()
+            val parsed = runCatching { loadM3u(candidate, onProgress, onPartial) }.getOrNull()
             if (parsed != null && parsed.total > 0) return parsed
         }
         onProgress(CatalogLoadProgress(stage = "Tentando outra fonte"))
@@ -141,18 +143,18 @@ class CatalogClient {
         )
     }
 
-        private fun loadM3u(url: String, onProgress: (CatalogLoadProgress) -> Unit): CatalogSnapshot {
+        private fun loadM3u(url: String, onProgress: (CatalogLoadProgress) -> Unit, onPartial: (CatalogSnapshot) -> Unit): CatalogSnapshot {
         val connection = open(url).apply { requestMethod = "GET" }
         return try {
             val tracker = ProgressTracker(connection.contentLengthLong, onProgress)
             val stream = CountingInputStream(responseStream(connection), tracker)
-            InputStreamReader(stream, Charsets.UTF_8).use { parseM3u(it, tracker) }
+            InputStreamReader(stream, Charsets.UTF_8).use { parseM3u(it, tracker, onPartial) }
                 .also { tracker.finish() }
         } finally {
             connection.disconnect()
         }
     }
-    private fun parseM3u(reader: InputStreamReader, tracker: ProgressTracker): CatalogSnapshot {
+    private fun parseM3u(reader: InputStreamReader, tracker: ProgressTracker, onPartial: (CatalogSnapshot) -> Unit): CatalogSnapshot {
 
         val live = mutableListOf<CatalogItem>()
         val movies = mutableListOf<CatalogItem>()
@@ -168,6 +170,7 @@ class CatalogClient {
         var externalSeriesId = ""
         var index = 0
         var total = 0
+        var lastPartialAt = 0
         val buffered = reader.buffered()
         while (total < MAX_M3U_ITEMS) {
             val raw = buffered.readLine() ?: break
@@ -224,6 +227,18 @@ class CatalogClient {
             }
             total++
             tracker.onItem(total)
+            if (total >= FIRST_VISIBLE_BATCH && (total - lastPartialAt >= PARTIAL_BATCH || lastPartialAt == 0)) {
+                lastPartialAt = total
+                onPartial(CatalogSnapshot(
+                    live = live.toList(),
+                    movies = movies.toList(),
+                    series = series.toList(),
+                    kids = kids.toList(),
+                    anime = anime.toList(),
+                    adult = adult.toList(),
+                    seriesEpisodes = seriesEpisodes.mapValues { it.value.toList() }
+                ))
+            }
             index++
             metadata = ""
             image = ""
@@ -546,5 +561,7 @@ class CatalogClient {
         const val MAX_VOD_ITEMS = 500_000
         const val MAX_M3U_ITEMS = 500_000
         const val MAX_EPISODES = 500
+        const val FIRST_VISIBLE_BATCH = 120
+        const val PARTIAL_BATCH = 240
     }
 }
