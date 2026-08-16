@@ -237,6 +237,7 @@ private fun DeviceIdentityScreen(vm: UnitvViewModel, onContinue: () -> Unit) {
             }
             when {
                 vm.accessLoading -> Text("Validando aparelho no servidor…", color = TextMuted)
+                vm.deviceAccess?.allowed == true && vm.playlistsLoading && !vm.catalogLoading -> Text("Aparelho reconhecido · carregando listas do painel…", color = PrestigieGold)
                 vm.deviceAccess?.allowed == true && vm.catalogLoading -> Text("Importando canais, filmes, séries e categorias da M3U…", color = PrestigieGold)
                 vm.deviceAccess?.allowed == true && vm.catalogError != null -> Text(vm.catalogError.orEmpty(), color = Color(0xFFFFB4AB))
                 vm.deviceAccess?.allowed == true && vm.catalogReady -> Text("Aparelho liberado · catálogo carregado", color = Color(0xFF78E39A))

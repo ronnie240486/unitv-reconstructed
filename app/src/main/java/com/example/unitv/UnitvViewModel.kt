@@ -139,6 +139,7 @@ class UnitvViewModel(
                 } else {
                     val access = backend.checkDevice(macAddress)
                     deviceAccess = access
+                    accessLoading = false
                     if (!access.allowed) {
                         if (catalog.total == 0) {
                             playlists = emptyList()
@@ -148,6 +149,8 @@ class UnitvViewModel(
                         playlistsError = "Acesso indisponível para este aparelho."
                     } else {
                         val service = backend ?: return@withLock
+                        catalogReady = false
+                        catalogLoading = true
                         visualConfig = runCatching { service.fetchVisualConfig(macAddress) }.getOrDefault(visualConfig)
                         val sources = service.fetchSources(macAddress)
                         if (sources.isNotEmpty()) {
@@ -159,6 +162,7 @@ class UnitvViewModel(
                         } else if (catalog.total == 0) {
                             playlistsError = "Aparelho liberado, aguardando listas do painel…"
                             catalogReady = false
+                            catalogLoading = false
                         }
                         service.heartbeat(macAddress)
                         syncNotificationsAndCommands()

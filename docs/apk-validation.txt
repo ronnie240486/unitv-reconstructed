@@ -1,4 +1,4 @@
-package: name='com.example.prestigie.reconstructed' versionCode='10' versionName='0.3.5-m3u-fallback' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
+package: name='com.example.prestigie.reconstructed' versionCode='11' versionName='0.3.6-auto-device-check' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
 application-label:'Prestigie'
 application-icon-120:'res/drawable/prestigie_icon.png'
 application-icon-160:'res/drawable/prestigie_icon.png'
@@ -7,9 +7,10 @@ application-icon-320:'res/drawable/prestigie_icon.png'
 application-icon-480:'res/drawable/prestigie_icon.png'
 application-icon-640:'res/drawable/prestigie_icon.png'
 application-icon-65534:'res/drawable/prestigie_icon.png'
-60960f22278ac1b39a6520625d87e8b072f81b785d1d8f68b796e2fde7791dbe  app/build/outputs/apk/debug/app-debug.apk
+28298ea1a5acdb56cca6ae6f6a2cfaa73c394103beca4ab4a0601c010e69cb67  app/build/outputs/apk/debug/app-debug.apk
 Build: SUCCESS
 Testes: testDebugUnitTest concluído
-Fallback: M3U vazia tenta outras fontes e Xtream
-Preservação: catálogo anterior não é apagado por resposta vazia
-Versão: 0.3.5-m3u-fallback / versionCode 10
+MAC: conferência automática na abertura, sem depender de copiar
+Estados: validação, listas do painel e importação M3U separados
+Retries: polling automático preservado
+Versão: 0.3.6-auto-device-check / versionCode 11
