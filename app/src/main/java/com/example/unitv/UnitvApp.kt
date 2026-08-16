@@ -151,8 +151,9 @@ fun UnitvApp(vm: UnitvViewModel = viewModel()) {
         }
     }
     LaunchedEffect(vm.deviceAccess?.allowed, vm.playlists, vm.catalogReady, vm.catalogLoading, vm.catalogError, vm.catalogProgress.percent, vm.catalogProgress.itemsRead) {
-        val hasCompleteCatalog = vm.catalog.hasAllPublicSections
-        if ((vm.accessLoading || vm.playlistsLoading || vm.catalogLoading) && !hasCompleteCatalog) {
+        val hasCompleteCatalog = vm.catalog.hasCoreContent
+        if (vm.accessLoading || vm.playlistsLoading || vm.catalogLoading) {
+            // Nunca libera a Home enquanto canais, filmes ou séries ainda estão sendo carregados.
             showDeviceSetup = true
         } else if ((vm.deviceAccess?.allowed == true || ProductConfig.api.useDemoData) && vm.playlists.isNotEmpty() && vm.catalogReady && hasCompleteCatalog && vm.catalogError == null) {
             delay(350)

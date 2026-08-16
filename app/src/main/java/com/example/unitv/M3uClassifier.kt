@@ -1,31 +1,95 @@
 package com.example.unitv
 
-/** Classificação M3U por origem, metadados e categoria, com proteção para conteúdo adulto. */
+/**
+ * Classificação M3U com separação estrutural por origem.
+ *
+ * A pasta e o tvg-type são a fonte de verdade para live, movie e series.
+ * Nome e group-title só são usados como fallback quando a fonte não informa
+ * a origem. Kids, Anime e Adultos são subcategorias protegidas da origem
+ * correspondente, nunca uma forma de transformar canal em série.
+ */
 object M3uClassifier {
     fun classify(group: String, title: String, mediaType: String, streamUrl: String): CatalogKind {
-        val url = streamUrl.lowercase()
+        val url = streamUrl.trim().lowercase()
         val type = mediaType.trim().lowercase()
         val category = group.trim().lowercase()
         val normalizedTitle = title.trim().lowercase()
-        return when {
-            isAdult(category, normalizedTitle, type, url) -> CatalogKind.ADULT
-            isKids(category, normalizedTitle, type) -> CatalogKind.KIDS
-            isAnime(category, normalizedTitle, type) -> CatalogKind.ANIME
-            url.contains("/series/") || url.contains("/serie/") -> CatalogKind.SERIES
-            url.contains("/movie/") || url.contains("/movies/") || url.contains("/filme/") -> CatalogKind.MOVIE
-            url.contains("/live/") || url.contains("/live_") -> CatalogKind.LIVE
-            EPISODE_PATTERN.containsMatchIn(normalizedTitle) -> CatalogKind.SERIES
-            type in SERIES_TYPES -> CatalogKind.SERIES
-            type in MOVIE_TYPES -> CatalogKind.MOVIE
-            type in LIVE_TYPES -> CatalogKind.LIVE
-            isSeriesCategory(category) -> CatalogKind.SERIES
-            isMovieCategory(category) -> CatalogKind.MOVIE
-            isLiveCategory(category) -> CatalogKind.LIVE
-            hasExplicitTitleTag(normalizedTitle, SERIES_TITLE_TAGS) -> CatalogKind.SERIES
-            hasExplicitTitleTag(normalizedTitle, MOVIE_TITLE_TAGS) -> CatalogKind.MOVIE
-            else -> CatalogKind.LIVE
+        val sourceKind = explicitSourceKind(type, url)
+
+        return when (sourceKind) {
+            CatalogKind.LIVE -> if (isAdult(category, normalizedTitle, type, url)) CatalogKind.ADULT else CatalogKind.LIVE
+            CatalogKind.MOVIE -> subcategoryFor(CatalogKind.MOVIE, category, normalizedTitle, type, url)
+            CatalogKind.SERIES -> subcategoryFor(CatalogKind.SERIES, category, normalizedTitle, type, url)
+            null -> fallbackClassification(category, normalizedTitle, type, url)
+            else -> fallbackClassification(category, normalizedTitle, type, url)
         }
     }
+
+    /**
+     * Classifica itens vindos de endpoints Xtream já conhecidos.
+     * O endpoint impede a migração entre Live, Filme e Série; somente as
+     * subcategorias protegidas podem mudar o destino dentro daquela origem.
+     */
+    fun classifyWithinSource(
+        sourceKind: CatalogKind,
+        group: String,
+        title: String,
+        mediaType: String,
+        streamUrl: String
+    ): CatalogKind {
+        val category = group.trim().lowercase()
+        val normalizedTitle = title.trim().lowercase()
+        val type = mediaType.trim().lowercase()
+        val url = streamUrl.trim().lowercase()
+        if (isAdult(category, normalizedTitle, type, url)) return CatalogKind.ADULT
+        if (sourceKind == CatalogKind.LIVE) return CatalogKind.LIVE
+        return subcategoryFor(sourceKind, category, normalizedTitle, type, url)
+    }
+
+    private fun explicitSourceKind(type: String, url: String): CatalogKind? = when {
+        isLivePath(url) || type in LIVE_TYPES -> CatalogKind.LIVE
+        isMoviePath(url) || type in MOVIE_TYPES -> CatalogKind.MOVIE
+        isSeriesPath(url) || type in SERIES_TYPES -> CatalogKind.SERIES
+        else -> null
+    }
+
+    private fun subcategoryFor(
+        sourceKind: CatalogKind,
+        category: String,
+        title: String,
+        type: String,
+        url: String
+    ): CatalogKind {
+        if (isAdult(category, title, type, url)) return CatalogKind.ADULT
+        if (isKids(category, title, type)) return CatalogKind.KIDS
+        if (isAnime(category, title, type)) return CatalogKind.ANIME
+        return sourceKind
+    }
+
+    private fun fallbackClassification(category: String, title: String, type: String, url: String): CatalogKind = when {
+        isAdult(category, title, type, url) -> CatalogKind.ADULT
+        isKids(category, title, type) -> CatalogKind.KIDS
+        isAnime(category, title, type) -> CatalogKind.ANIME
+        EPISODE_PATTERN.containsMatchIn(title) -> CatalogKind.SERIES
+        type in SERIES_TYPES -> CatalogKind.SERIES
+        type in MOVIE_TYPES -> CatalogKind.MOVIE
+        type in LIVE_TYPES -> CatalogKind.LIVE
+        isSeriesCategory(category) -> CatalogKind.SERIES
+        isMovieCategory(category) -> CatalogKind.MOVIE
+        isLiveCategory(category) -> CatalogKind.LIVE
+        hasExplicitTitleTag(title, SERIES_TITLE_TAGS) -> CatalogKind.SERIES
+        hasExplicitTitleTag(title, MOVIE_TITLE_TAGS) -> CatalogKind.MOVIE
+        else -> CatalogKind.LIVE
+    }
+
+    private fun isLivePath(url: String): Boolean =
+        url.contains("/live/") || url.contains("/live_") || url.contains("/channel/") || url.contains("/channels/")
+
+    private fun isMoviePath(url: String): Boolean =
+        url.contains("/movie/") || url.contains("/movies/") || url.contains("/filme/") || url.contains("/filmes/")
+
+    private fun isSeriesPath(url: String): Boolean =
+        url.contains("/series/") || url.contains("/serie/")
 
     private fun isAdult(category: String, title: String, type: String, url: String): Boolean {
         val value = "$category $title $type $url"

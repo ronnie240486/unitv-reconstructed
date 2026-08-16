@@ -121,18 +121,16 @@ class CatalogClient {
                 )
             }
         }
-        val grouped = (live + movies + series).groupBy { item ->
-            M3uClassifier.classify(
-                group = item.category,
-                title = item.title,
-                mediaType = when {
-                    item.kind == CatalogKind.LIVE -> "live"
-                    item.kind == CatalogKind.SERIES -> "series"
-                    else -> "movie"
-                },
-                streamUrl = item.streamUrl
-            )
+        val classifiedLive = live.map { item ->
+            item.copy(kind = M3uClassifier.classifyWithinSource(CatalogKind.LIVE, item.category, item.title, "live", item.streamUrl))
         }
+        val classifiedMovies = movies.map { item ->
+            item.copy(kind = M3uClassifier.classifyWithinSource(CatalogKind.MOVIE, item.category, item.title, "movie", item.streamUrl))
+        }
+        val classifiedSeries = series.map { item ->
+            item.copy(kind = M3uClassifier.classifyWithinSource(CatalogKind.SERIES, item.category, item.title, "series", item.streamUrl))
+        }
+        val grouped = (classifiedLive + classifiedMovies + classifiedSeries).groupBy { it.kind }
         val snapshot = CatalogSnapshot(
             live = grouped[CatalogKind.LIVE].orEmpty(),
             movies = grouped[CatalogKind.MOVIE].orEmpty(),

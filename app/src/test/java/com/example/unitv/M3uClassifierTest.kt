@@ -51,4 +51,56 @@ class M3uClassifierTest {
             M3uClassifier.classify("Series | Crunchyroll", "Temporada 1", "series", "http://server/series/6.mkv")
         )
     }
+
+    @Test
+    fun `canal 24 horas continua em canais mesmo com nome de serie`() {
+        assertEquals(
+            CatalogKind.LIVE,
+            M3uClassifier.classify(
+                "Canais 24 Horas",
+                "Novela S01E01",
+                "live",
+                "http://server/live/24.m3u8"
+            )
+        )
+    }
+
+    @Test
+    fun `tipo live vence padrao de episodio e categoria series`() {
+        assertEquals(
+            CatalogKind.LIVE,
+            M3uClassifier.classify(
+                "Séries 24 Horas",
+                "Canal Notícias S02E03",
+                "tv",
+                "http://server/live/news.m3u8"
+            )
+        )
+    }
+
+    @Test
+    fun `origem movie nao vira serie por causa do titulo`() {
+        assertEquals(
+            CatalogKind.MOVIE,
+            M3uClassifier.classify(
+                "Filmes",
+                "Canal 24 Horas S01E01",
+                "movie",
+                "http://server/movie/7.mp4"
+            )
+        )
+    }
+
+    @Test
+    fun `origem series nao mistura com live por causa do grupo`() {
+        assertEquals(
+            CatalogKind.SERIES,
+            M3uClassifier.classify(
+                "Canais 24 Horas",
+                "Minha Série S01E01",
+                "series",
+                "http://server/series/8.mkv"
+            )
+        )
+    }
 }

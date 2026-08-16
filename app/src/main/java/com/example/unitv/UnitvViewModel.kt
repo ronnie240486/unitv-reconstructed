@@ -306,11 +306,13 @@ class UnitvViewModel(
                                 episodesError = null
                             }
                         }
-                        catalogReady = true
+                        // Snapshot parcial apenas atualiza o catálogo em memória. A TV permanece bloqueada
+                        // até o parser terminar canais, filmes e séries e o cache ser salvo.
+                        catalogReady = false
                         catalogLoading = true
                         catalogError = null
                         catalogProgress = catalogProgress.copy(
-                            stage = "Cards de canais, filmes e séries prontos; carregando detalhes em segundo plano",
+                            stage = "Carregando canais, filmes e séries completos",
                             itemsRead = initial.total
                         )
                     }
