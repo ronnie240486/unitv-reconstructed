@@ -17,8 +17,8 @@ import org.json.JSONObject
 class CatalogClient {
     suspend fun load(playlist: Playlist): CatalogSnapshot = withContext(Dispatchers.IO) {
         if (playlist.directM3uUrl.isNotBlank()) {
-            runCatching { loadM3u(playlist.directM3uUrl) }
-                .getOrElse { loadFromFallbackCandidates(playlist) }
+            val direct = runCatching { loadM3u(playlist.directM3uUrl) }.getOrNull()
+            direct?.takeIf { it.total > 0 } ?: loadFromFallbackCandidates(playlist)
         } else {
             loadFromFallbackCandidates(playlist)
         }
