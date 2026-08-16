@@ -9,6 +9,9 @@ import java.net.HttpURLConnection
 import java.net.URLEncoder
 import java.net.URL
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
@@ -23,31 +26,52 @@ class CatalogClient {
         onInitial: (CatalogSnapshot) -> Unit = {}
     ): CatalogSnapshot = withContext(Dispatchers.IO) {
         onProgress(CatalogLoadProgress(stage = "Conectando ao servidor"))
-        if (playlist.directM3uUrl.isNotBlank()) {
-            val direct = runCatching { loadM3u(playlist.directM3uUrl, onProgress, onInitial) }.getOrNull()
-            direct?.takeIf { it.total > 0 } ?: loadFromFallbackCandidates(playlist, onProgress, onInitial)
-        } else {
-            loadFromFallbackCandidates(playlist, onProgress, onInitial)
+        if (isXtreamCandidate(playlist)) {
+            onProgress(CatalogLoadProgress(stage = "Consultando categorias Xtream"))
+            val xtream = try {
+                loadXtream(playlist, onProgress, onInitial)
+            } catch (_: Exception) {
+                null
+            }
+            if (xtream?.hasCoreContent == true) return@withContext xtream
         }
+        onProgress(CatalogLoadProgress(stage = "Lendo M3U como fallback"))
+        loadFromFallbackCandidates(playlist, onProgress, onInitial)
     }
 
-    private fun loadFromFallbackCandidates(
+    private suspend fun loadFromFallbackCandidates(
         playlist: Playlist,
         onProgress: (CatalogLoadProgress) -> Unit,
         onInitial: (CatalogSnapshot) -> Unit
     ): CatalogSnapshot {
         for (candidate in m3uCandidates(playlist)) {
-            val parsed = runCatching { loadM3u(candidate, onProgress, onInitial) }.getOrNull()
+            val parsed = try {
+                loadM3u(candidate, onProgress, onInitial)
+            } catch (_: Exception) {
+                null
+            }
             if (parsed != null && parsed.total > 0) return parsed
         }
-        onProgress(CatalogLoadProgress(stage = "Tentando outra fonte"))
-        return runCatching { loadXtream(playlist, onProgress, onInitial) }.getOrElse { CatalogSnapshot() }
+        return CatalogSnapshot()
+    }
+
+    private fun isXtreamCandidate(playlist: Playlist): Boolean {
+        if (playlist.username.isBlank() || playlist.password.isBlank()) return false
+        val raw = playlist.url.substringBefore("?").trimEnd('/').lowercase()
+        return playlist.type.contains("xtream", ignoreCase = true) ||
+            raw.endsWith("/player_api.php") ||
+            raw.endsWith("/get.php") ||
+            (!raw.endsWith(".m3u") && !raw.endsWith(".m3u8"))
+    }
+
+    private fun xtreamBase(url: String): String {
+        val path = url.substringBefore("?").trimEnd('/')
+        return path.removeSuffix("/player_api.php").removeSuffix("/get.php").trimEnd('/')
     }
 
     private fun m3uCandidates(playlist: Playlist): List<String> {
         val candidates = linkedSetOf<String>()
-        val server = playlist.url.substringBefore("?").trimEnd('/')
-            .removeSuffix("/player_api.php").removeSuffix("/get.php")
+        val server = xtreamBase(playlist.url)
         if (playlist.username.isNotBlank() && playlist.password.isNotBlank() && server.isNotBlank()) {
             candidates += "$server/get.php?username=${encode(playlist.username)}&password=${encode(playlist.password)}&type=m3u_plus&output=ts"
         }
@@ -58,14 +82,19 @@ class CatalogClient {
         return candidates.toList()
     }
 
-    private fun loadXtream(playlist: Playlist, onProgress: (CatalogLoadProgress) -> Unit, onInitial: (CatalogSnapshot) -> Unit): CatalogSnapshot {
+    private suspend fun loadXtream(playlist: Playlist, onProgress: (CatalogLoadProgress) -> Unit, onInitial: (CatalogSnapshot) -> Unit): CatalogSnapshot = coroutineScope {
         require(playlist.username.isNotBlank() && playlist.password.isNotBlank())
-        val base = playlist.url.trimEnd('/')
-        val liveCategories = categoryMap("$base/player_api.php", playlist, "get_live_categories")
-        val vodCategories = categoryMap("$base/player_api.php", playlist, "get_vod_categories")
-        val seriesCategories = categoryMap("$base/player_api.php", playlist, "get_series_categories")
+        val base = xtreamBase(playlist.url)
+        val categoryResults = listOf(
+            async { categoryMap("$base/player_api.php", playlist, "get_live_categories") },
+            async { categoryMap("$base/player_api.php", playlist, "get_vod_categories") },
+            async { categoryMap("$base/player_api.php", playlist, "get_series_categories") }
+        ).awaitAll()
+        val liveCategories = categoryResults[0]
+        val vodCategories = categoryResults[1]
+        val seriesCategories = categoryResults[2]
 
-        val live = buildList {
+        val liveDeferred = async { buildList {
             streamArray("$base/player_api.php", playlist, "get_live_streams", MAX_LIVE_ITEMS) { item, index ->
                 val id = item.optString("stream_id").ifBlank { item.optString("num", "live-$index") }
                 val name = item.optString("name").ifBlank { "Canal ${index + 1}" }
@@ -82,7 +111,8 @@ class CatalogClient {
                 )
             }
         }
-        val movies = buildList {
+        }
+        val moviesDeferred = async { buildList {
             streamArray("$base/player_api.php", playlist, "get_vod_streams", MAX_VOD_ITEMS) { item, index ->
                 val id = item.optString("stream_id").ifBlank { item.optString("num", "movie-$index") }
                 val name = item.optString("name").ifBlank { "Filme ${index + 1}" }
@@ -102,7 +132,8 @@ class CatalogClient {
                 )
             }
         }
-        val series = buildList {
+        }
+        val seriesDeferred = async { buildList {
             streamArray("$base/player_api.php", playlist, "get_series", MAX_VOD_ITEMS) { item, index ->
                 val id = item.optString("series_id").ifBlank { item.optString("num", "series-$index") }
                 val name = item.optString("name").ifBlank { "Série ${index + 1}" }
@@ -120,7 +151,10 @@ class CatalogClient {
                     )
                 )
             }
-        }
+        } }
+        val live = liveDeferred.await()
+        val movies = moviesDeferred.await()
+        val series = seriesDeferred.await()
         val classifiedLive = live.map { item ->
             item.copy(kind = M3uClassifier.classifyWithinSource(CatalogKind.LIVE, item.category, item.title, "live", item.streamUrl))
         }
@@ -143,7 +177,7 @@ class CatalogClient {
             onInitial(snapshot)
             onProgress(CatalogLoadProgress(stage = "Cards principais prontos; episódios serão carregados ao abrir a série", itemsRead = snapshot.total))
         }
-        return snapshot
+        return@coroutineScope snapshot
     }
 
         private fun loadM3u(url: String, onProgress: (CatalogLoadProgress) -> Unit, onInitial: (CatalogSnapshot) -> Unit): CatalogSnapshot {
@@ -333,7 +367,7 @@ class CatalogClient {
     }
 
     suspend fun fetchSeriesEpisodes(playlist: Playlist, seriesId: String): List<SeriesEpisode> = withContext(Dispatchers.IO) {
-        val base = playlist.url.trimEnd('/')
+        val base = xtreamBase(playlist.url)
         val endpoint = "$base/player_api.php?${query(playlist)}&action=${encode("get_series_info")}&series_id=${encode(seriesId)}"
         val connection = open(endpoint).apply { requestMethod = "GET" }
         val episodes = mutableListOf<SeriesEpisode>()
