@@ -30,6 +30,7 @@ class UnitvViewModel(
     private var heartbeatJob: Job? = null
     private var catalogJob: Job? = null
     private var episodesJob: Job? = null
+    private var catalogClockJob: Job? = null
     private val seenNotificationIds = mutableSetOf<Long>()
     private var appContext: Context? = null
 
@@ -167,8 +168,6 @@ class UnitvViewModel(
                         playlistsError = "Acesso indisponível para este aparelho."
                     } else {
                         val service = backend ?: return@withLock
-                        catalogReady = false
-                        catalogLoading = true
                         visualConfig = runCatching { service.fetchVisualConfig(macAddress) }.getOrDefault(visualConfig)
                         val panelSources = service.fetchSources(macAddress)
                         val sources = if (panelSources.isNotEmpty()) {
@@ -287,12 +286,18 @@ class UnitvViewModel(
 
     private suspend fun loadSelectedCatalogNow() {
         val playlist = selectedPlaylist ?: return
-        catalogReady = false
-        catalogLoading = true
-        catalogError = null
-        catalogProgress = CatalogLoadProgress()
+        val sourceIdentity = PlaylistSourceIdentity.identity(playlist)
+        val fallbackFingerprint = PlaylistSourceIdentity.fingerprint(sourceIdentity)
         val cached = appContext?.let { CatalogCache.load(it, playlist.id) }
-        if (cached != null && cached.hasCoreContent) {
+        val metadata = appContext?.let { CatalogCache.loadMetadata(it, playlist.id) }
+        var observedFingerprint = ""
+        val cacheIsCurrent = if (cached?.hasCoreContent == true && metadata?.sourceIdentity == sourceIdentity) {
+            observedFingerprint = runCatching { catalogClient.sourceFingerprint(playlist) }.getOrElse { fallbackFingerprint }
+            metadata.sourceFingerprint.isNotBlank() && metadata.sourceFingerprint == observedFingerprint
+        } else {
+            false
+        }
+        if (cacheIsCurrent && cached != null) {
             catalog = cached
             selectedCatalogItem?.takeIf { it.kind == CatalogKind.SERIES }?.let { openSeries ->
                 seriesEpisodes = cached.seriesEpisodes[openSeries.id].orEmpty()
@@ -300,10 +305,16 @@ class UnitvViewModel(
                 episodesError = if (seriesEpisodes.isEmpty()) "Nenhum episódio disponível no cache." else null
             }
             catalogReady = true
-            // Mantém catalogLoading=true enquanto a atualização da fonte ocorre; o cache serve como fallback.
             catalogError = null
-            catalogProgress = CatalogLoadProgress(100, 0, 0, estimated = false)
+            catalogProgress = CatalogLoadProgress(100, 0, 0, estimated = false, stage = "Catálogo pronto")
+            catalogLoading = false
+            return
         }
+        catalogReady = false
+        catalogLoading = true
+        catalogError = null
+        catalogProgress = CatalogLoadProgress(stage = "Carregando sua lista")
+        startCatalogClock()
         try {
             val loaded = catalogClient.load(
                 playlist,
@@ -327,7 +338,7 @@ class UnitvViewModel(
                         catalogLoading = true
                         catalogError = null
                         catalogProgress = catalogProgress.copy(
-                            stage = "Carregando canais, filmes e séries completos",
+                            stage = "Carregando sua lista",
                             itemsRead = initial.total
                         )
                     }
@@ -344,15 +355,24 @@ class UnitvViewModel(
                 catalogReady = true
                 catalogProgress = catalogProgress.copy(
                     percent = 91,
-                    stage = "Salvando catálogo local",
+                    stage = "Carregando sua lista",
                     itemsRead = loaded.total,
                     estimated = false
                 )
+                if (observedFingerprint.isBlank()) {
+                    observedFingerprint = runCatching { catalogClient.sourceFingerprint(playlist) }.getOrElse { fallbackFingerprint }
+                }
                 appContext?.let { context ->
-                    CatalogCache.save(context, playlist.id, loaded) { written, total ->
+                    CatalogCache.save(
+                        context,
+                        playlist.id,
+                        loaded,
+                        sourceIdentity = sourceIdentity,
+                        sourceFingerprint = observedFingerprint
+                    ) { written, total ->
                         catalogProgress = catalogProgress.copy(
                             percent = if (total > 0) (91 + (written * 8 / total)).coerceIn(91, 99) else 91,
-                            stage = "Salvando catálogo local",
+                            stage = "Carregando sua lista",
                             itemsRead = written,
                             estimated = false
                         )
@@ -370,11 +390,35 @@ class UnitvViewModel(
                 catalogError = "A lista ainda não entregou canais, filmes e séries completos."
             }
         } catch (_: Exception) {
-            if (cached == null) catalogError = "Não foi possível carregar o conteúdo da lista."
+            if (cached?.hasCoreContent == true) {
+                catalog = cached
+                catalogError = null
+                catalogReady = true
+            } else {
+                catalogError = "Não foi possível carregar o conteúdo da lista."
+            }
         } finally {
+            stopCatalogClock()
             catalogReady = catalog.hasCoreContent && catalogError == null
             catalogLoading = !catalogReady
         }
+    }
+
+    private fun startCatalogClock() {
+        catalogClockJob?.cancel()
+        val startedAt = System.currentTimeMillis()
+        catalogClockJob = viewModelScope.launch {
+            while (isActive && catalogLoading) {
+                val elapsed = ((System.currentTimeMillis() - startedAt) / 1000L).coerceAtLeast(0)
+                catalogProgress = catalogProgress.copy(elapsedSeconds = maxOf(catalogProgress.elapsedSeconds, elapsed))
+                delay(1_000)
+            }
+        }
+    }
+
+    private fun stopCatalogClock() {
+        catalogClockJob?.cancel()
+        catalogClockJob = null
     }
 
     fun refreshCatalog() {
@@ -573,6 +617,7 @@ class UnitvViewModel(
         heartbeatJob?.cancel()
         catalogJob?.cancel()
         episodesJob?.cancel()
+        catalogClockJob?.cancel()
         super.onCleared()
     }
 }

@@ -36,7 +36,7 @@ data class CatalogLoadProgress(
     val remainingSeconds: Long? = null,
     val estimated: Boolean = false,
     val itemsRead: Int = 0,
-    val stage: String = "Preparando catálogo"
+    val stage: String = "Carregando sua lista"
 )
 
 data class CatalogSnapshot(

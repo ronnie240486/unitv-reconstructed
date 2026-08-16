@@ -20,14 +20,56 @@ import org.json.JSONObject
  * O limite evita que uma fonte com milhões de itens derrube dispositivos móveis.
  */
 class CatalogClient {
+    suspend fun sourceFingerprint(playlist: Playlist): String = withContext(Dispatchers.IO) {
+        val identity = PlaylistSourceIdentity.identity(playlist)
+        val candidates = linkedSetOf<String>().apply {
+            if (playlist.directM3uUrl.isNotBlank()) add(playlist.directM3uUrl)
+            if (playlist.url.isNotBlank()) add(playlist.url)
+            val base = xtreamBase(playlist.url)
+            if (playlist.username.isNotBlank() && playlist.password.isNotBlank() && base.isNotBlank()) {
+                add("$base/get.php?username=${encode(playlist.username)}&password=${encode(playlist.password)}&type=m3u_plus&output=ts")
+            }
+        }
+        for (candidate in candidates) {
+            val connection = runCatching {
+                (URL(candidate).openConnection() as HttpURLConnection).apply {
+                    requestMethod = "HEAD"
+                    connectTimeout = 4_000
+                    readTimeout = 4_000
+                    setRequestProperty("Accept", "audio/x-mpegurl, text/plain, application/json, */*")
+                    setRequestProperty("User-Agent", "Prestigie/0.4.6")
+                }
+            }.getOrNull() ?: continue
+            try {
+                if (connection.responseCode in 200..399) {
+                    val marker = listOf(
+                        candidate,
+                        connection.getHeaderField("ETag").orEmpty(),
+                        connection.getHeaderField("Last-Modified").orEmpty(),
+                        connection.getHeaderField("Content-Length").orEmpty(),
+                        connection.getHeaderField("Content-Type").orEmpty()
+                    ).joinToString("|")
+                    if (marker.substringAfter("|").isNotBlank()) {
+                        return@withContext PlaylistSourceIdentity.fingerprint(marker)
+                    }
+                }
+            } catch (_: Exception) {
+                // Uma fonte que não aceita HEAD continua válida; usamos a identidade da URL.
+            } finally {
+                connection.disconnect()
+            }
+        }
+        PlaylistSourceIdentity.fingerprint(identity)
+    }
+
     suspend fun load(
         playlist: Playlist,
         onProgress: (CatalogLoadProgress) -> Unit = {},
         onInitial: (CatalogSnapshot) -> Unit = {}
     ): CatalogSnapshot = withContext(Dispatchers.IO) {
-        onProgress(CatalogLoadProgress(stage = "Conectando ao servidor"))
+        onProgress(CatalogLoadProgress(stage = "Carregando sua lista"))
         if (isXtreamCandidate(playlist)) {
-            onProgress(CatalogLoadProgress(stage = "Consultando categorias Xtream"))
+            onProgress(CatalogLoadProgress(stage = "Carregando sua lista"))
             val xtream = try {
                 loadXtream(playlist, onProgress, onInitial)
             } catch (_: Exception) {
@@ -35,7 +77,7 @@ class CatalogClient {
             }
             if (xtream?.hasCoreContent == true) return@withContext xtream
         }
-        onProgress(CatalogLoadProgress(stage = "Lendo M3U como fallback"))
+        onProgress(CatalogLoadProgress(stage = "Carregando sua lista"))
         loadFromFallbackCandidates(playlist, onProgress, onInitial)
     }
 
@@ -175,7 +217,7 @@ class CatalogClient {
         )
         if (snapshot.hasCoreContent) {
             onInitial(snapshot)
-            onProgress(CatalogLoadProgress(stage = "Cards principais prontos; episódios serão carregados ao abrir a série", itemsRead = snapshot.total))
+            onProgress(CatalogLoadProgress(stage = "Carregando sua lista", itemsRead = snapshot.total))
         }
         return@coroutineScope snapshot
     }
@@ -270,7 +312,7 @@ class CatalogClient {
             if (firstSnapshot || periodicSnapshot) {
                 if (firstSnapshot) {
                     initialEmitted = true
-                    onProgress(CatalogLoadProgress(stage = "Cards principais prontos; carregando índice de episódios em segundo plano", itemsRead = total))
+                    onProgress(CatalogLoadProgress(stage = "Carregando sua lista", itemsRead = total))
                 }
                 onInitial(CatalogSnapshot(
                     live = live.toList(),
@@ -496,7 +538,7 @@ class CatalogClient {
         private var lastReportAt = 0L
         private var bytesRead = 0L
         private var itemsRead = 0
-        private var stage = "Baixando catálogo"
+        private var stage = "Carregando sua lista"
 
         fun onBytes(count: Int) {
             if (count <= 0) return
@@ -506,12 +548,12 @@ class CatalogClient {
 
         fun onItem(count: Int) {
             itemsRead = count
-            stage = "Processando catálogo"
+            stage = "Carregando sua lista"
             report()
         }
 
         fun finish() {
-            stage = "Preparando cache local"
+            stage = "Carregando sua lista"
             report(force = true)
         }
 

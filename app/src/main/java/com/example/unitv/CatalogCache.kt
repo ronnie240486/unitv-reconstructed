@@ -5,6 +5,11 @@ import org.json.JSONObject
 import java.io.File
 
 /** Cache local em JSONL: uma entrada por linha para não duplicar o catálogo em uma String gigante. */
+data class CatalogCacheMetadata(
+    val sourceIdentity: String,
+    val sourceFingerprint: String
+)
+
 object CatalogCache {
     fun load(context: Context, playlistId: String): CatalogSnapshot? {
         val file = cacheFile(context, playlistId)
@@ -60,7 +65,26 @@ object CatalogCache {
         }.getOrNull()
     }
 
-    fun save(context: Context, playlistId: String, snapshot: CatalogSnapshot, onProgress: (written: Int, total: Int) -> Unit = { _, _ -> }) {
+    fun loadMetadata(context: Context, playlistId: String): CatalogCacheMetadata? {
+        val file = metadataFile(context, playlistId)
+        if (!file.exists() || file.length() == 0L) return null
+        return runCatching {
+            val json = JSONObject(file.readText(Charsets.UTF_8))
+            CatalogCacheMetadata(
+                sourceIdentity = json.optString("sourceIdentity"),
+                sourceFingerprint = json.optString("sourceFingerprint")
+            )
+        }.getOrNull()
+    }
+
+    fun save(
+        context: Context,
+        playlistId: String,
+        snapshot: CatalogSnapshot,
+        sourceIdentity: String = "",
+        sourceFingerprint: String = "",
+        onProgress: (written: Int, total: Int) -> Unit = { _, _ -> }
+    ) {
         val file = cacheFile(context, playlistId)
         val temporary = File(file.parentFile, "${file.name}.tmp")
         runCatching {
@@ -112,6 +136,13 @@ object CatalogCache {
                 temporary.copyTo(file, overwrite = true)
                 temporary.delete()
             }
+            if (sourceIdentity.isNotBlank()) {
+                val metadata = JSONObject()
+                    .put("sourceIdentity", sourceIdentity)
+                    .put("sourceFingerprint", sourceFingerprint)
+                    .put("savedAt", System.currentTimeMillis())
+                metadataFile(context, playlistId).writeText(metadata.toString(), Charsets.UTF_8)
+            }
         }
     }
 
@@ -130,5 +161,10 @@ object CatalogCache {
     private fun cacheFile(context: Context, playlistId: String): File {
         val safe = playlistId.replace(Regex("[^A-Za-z0-9_-]"), "_").ifBlank { "default" }
         return File(context.filesDir, "prestigie_catalog_$safe.jsonl")
+    }
+
+    private fun metadataFile(context: Context, playlistId: String): File {
+        val safe = playlistId.replace(Regex("[^A-Za-z0-9_-]"), "_").ifBlank { "default" }
+        return File(context.filesDir, "prestigie_catalog_$safe.meta.json")
     }
 }

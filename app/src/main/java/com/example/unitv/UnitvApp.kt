@@ -521,8 +521,8 @@ private fun HomeScreen(vm: UnitvViewModel) {
                         Icon(Icons.Default.Refresh, contentDescription = null, tint = PrestigieGold, modifier = Modifier.size(25.dp))
                         Spacer(Modifier.width(10.dp))
                         Column {
-                            Text("Carregando catálogo completo", color = Color.White, fontWeight = FontWeight.Bold)
-                            Text("Aguarde a importação da M3U…", color = TextMuted, fontSize = 12.sp)
+                            Text("Carregando sua lista", color = Color.White, fontWeight = FontWeight.Bold)
+                            Text("Aguarde a atualização do conteúdo…", color = TextMuted, fontSize = 12.sp)
                         }
                     }
                 }
