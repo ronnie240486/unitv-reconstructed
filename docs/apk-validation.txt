@@ -1,4 +1,4 @@
-package: name='com.example.prestigie.reconstructed' versionCode='12' versionName='0.3.7-progress' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
+package: name='com.example.prestigie.reconstructed' versionCode='13' versionName='0.3.8-progress-throttle' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
 application-label:'Prestigie'
 application-icon-120:'res/drawable/prestigie_icon.png'
 application-icon-160:'res/drawable/prestigie_icon.png'
@@ -7,9 +7,9 @@ application-icon-320:'res/drawable/prestigie_icon.png'
 application-icon-480:'res/drawable/prestigie_icon.png'
 application-icon-640:'res/drawable/prestigie_icon.png'
 application-icon-65534:'res/drawable/prestigie_icon.png'
-bbe418fe23300c2e556b85a241d552f61de5705e7937ce2b57a4c4e51dae5da4  /home/ubuntu/unitv_progress_work/app/build/outputs/apk/debug/app-debug.apk
+fe16aac2bb809cad61ee2e84c5eb3b02274a1200e8e4f582455a695c9162aa87  app/build/outputs/apk/debug/app-debug.apk
 Build: SUCCESS
 Testes: testDebugUnitTest concluído
-Progresso: percentual por bytes quando disponível e estimativa por itens quando necessário
-Mensagem: código enviado ao revendedor para ativar o acesso
-Versão: 0.3.7-progress / versionCode 12
+Progresso: callbacks limitados a uma atualização por 350 ms
+Finalização: 100% somente após o catálogo ser montado
+Versão: 0.3.8-progress-throttle / versionCode 13

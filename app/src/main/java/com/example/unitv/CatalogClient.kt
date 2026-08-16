@@ -413,7 +413,7 @@ class CatalogClient {
 
         fun onItem(count: Int) {
             itemsRead = count
-            report(force = true)
+            report()
         }
 
         fun finish() {
