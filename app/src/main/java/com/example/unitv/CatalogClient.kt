@@ -17,18 +17,33 @@ import org.json.JSONObject
 class CatalogClient {
     suspend fun load(playlist: Playlist): CatalogSnapshot = withContext(Dispatchers.IO) {
         if (playlist.directM3uUrl.isNotBlank()) {
-            try {
-                loadM3u(playlist.directM3uUrl)
-            } catch (_: Exception) {
-                loadXtream(playlist)
-            }
+            runCatching { loadM3u(playlist.directM3uUrl) }
+                .getOrElse { loadFromFallbackCandidates(playlist) }
         } else {
-            try {
-                loadXtream(playlist)
-            } catch (_: Exception) {
-                loadM3u(playlist.url)
-            }
+            loadFromFallbackCandidates(playlist)
         }
+    }
+
+    private fun loadFromFallbackCandidates(playlist: Playlist): CatalogSnapshot {
+        for (candidate in m3uCandidates(playlist)) {
+            val parsed = runCatching { loadM3u(candidate) }.getOrNull()
+            if (parsed != null && parsed.total > 0) return parsed
+        }
+        return runCatching { loadXtream(playlist) }.getOrElse { CatalogSnapshot() }
+    }
+
+    private fun m3uCandidates(playlist: Playlist): List<String> {
+        val candidates = linkedSetOf<String>()
+        val server = playlist.url.substringBefore("?").trimEnd('/')
+            .removeSuffix("/player_api.php").removeSuffix("/get.php")
+        if (playlist.username.isNotBlank() && playlist.password.isNotBlank() && server.isNotBlank()) {
+            candidates += "$server/get.php?username=${encode(playlist.username)}&password=${encode(playlist.password)}&type=m3u_plus&output=ts"
+        }
+        if (playlist.directM3uUrl.isNotBlank()) candidates += playlist.directM3uUrl
+        if (playlist.url.contains("get.php", true) || playlist.url.contains(".m3u", true) || playlist.url.contains("m3u8", true)) {
+            candidates += playlist.url
+        }
+        return candidates.toList()
     }
 
     private fun loadXtream(playlist: Playlist): CatalogSnapshot {
@@ -114,6 +129,7 @@ class CatalogClient {
         var metadata = ""
         var image = ""
         var group = ""
+        var mediaType = ""
         var index = 0
         var total = 0
         val buffered = reader.buffered()
@@ -125,14 +141,15 @@ class CatalogClient {
                 metadata = line.substringAfterLast(',').trim().ifBlank { "Conteúdo ${index + 1}" }
                 image = attribute(line, "tvg-logo")
                 group = attribute(line, "group-title").ifBlank { "Catálogo" }
+                mediaType = attribute(line, "tvg-type")
                 continue
             }
             if (line.startsWith("#")) continue
             if (metadata.isBlank()) continue
-            val lower = "$group $metadata".lowercase()
+            val lower = "$group $metadata $mediaType $line".lowercase()
             val kind = when {
-                listOf("series", "série", "temporada", "season").any { lower.contains(it) } -> CatalogKind.SERIES
-                listOf("filme", "filmes", "movie", "vod", "cinema").any { lower.contains(it) } -> CatalogKind.MOVIE
+                mediaType.contains("series", true) || mediaType.contains("serie", true) || line.contains("/series/", true) || listOf("series", "série", "temporada", "season").any { lower.contains(it) } -> CatalogKind.SERIES
+                mediaType.contains("movie", true) || mediaType.contains("filme", true) || line.contains("/movie/", true) || listOf("filme", "filmes", "movie", "vod", "cinema").any { lower.contains(it) } -> CatalogKind.MOVIE
                 else -> CatalogKind.LIVE
             }
             val item = CatalogItem("m3u-$index", metadata, group, kind, image, line)
@@ -146,6 +163,7 @@ class CatalogClient {
             metadata = ""
             image = ""
             group = ""
+            mediaType = ""
         }
         return CatalogSnapshot(live, movies, series)
     }
@@ -347,10 +365,10 @@ class CatalogClient {
     }
 
     private companion object {
-        const val MAX_CATEGORY_ITEMS = 500
-        const val MAX_LIVE_ITEMS = 2500
-        const val MAX_VOD_ITEMS = 2500
-        const val MAX_M3U_ITEMS = 8000
+        const val MAX_CATEGORY_ITEMS = 500_000
+        const val MAX_LIVE_ITEMS = 100_000
+        const val MAX_VOD_ITEMS = 500_000
+        const val MAX_M3U_ITEMS = 500_000
         const val MAX_EPISODES = 500
     }
 }

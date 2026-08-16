@@ -1,4 +1,4 @@
-package: name='com.example.prestigie.reconstructed' versionCode='5' versionName='0.3.0-player' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
+package: name='com.example.prestigie.reconstructed' versionCode='6' versionName='0.3.1-full-m3u' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
 application-label:'Prestigie'
 application-icon-120:'res/drawable/prestigie_icon.png'
 application-icon-160:'res/drawable/prestigie_icon.png'
@@ -7,10 +7,10 @@ application-icon-320:'res/drawable/prestigie_icon.png'
 application-icon-480:'res/drawable/prestigie_icon.png'
 application-icon-640:'res/drawable/prestigie_icon.png'
 application-icon-65534:'res/drawable/prestigie_icon.png'
-86c414beb7bd67393d512aba540008c82e0da66a37fcbf54bc3a44570cc97481  app/build/outputs/apk/debug/app-debug.apk
+0189539931b06f879c1f27b6e33bb4aeef2276f9bd7d058d936e3c6df066804e  app/build/outputs/apk/debug/app-debug.apk
 Build: SUCCESS
 Testes: testDebugUnitTest concluído
-Player: Media3 ExoPlayer com HLS/MP4 e tratamento de erro
-Canais: todos os canais e categorias reais da lista
-Séries: consulta de episódios Xtream
-Versão: 0.3.0-player / versionCode 5
+Fonte: M3U principal priorizada; Xtream apenas como fallback
+Catálogo: limites ampliados para 500000 itens e leitura em fluxo
+Categorias: group-title completo, sem corte visual
+Versão: 0.3.1-full-m3u / versionCode 6

@@ -547,7 +547,7 @@ private fun CatalogCard(item: CatalogItem, vm: UnitvViewModel) {
 @Composable
 private fun CatalogScreen(vm: UnitvViewModel, title: String, contentItems: List<CatalogItem>) {
     var activeCategory by remember(title) { mutableStateOf("Todos") }
-    val categories = listOf("Todos") + contentItems.map { it.category }.filter { it.isNotBlank() }.distinct().take(30)
+    val categories = listOf("Todos") + contentItems.map { it.category }.filter { it.isNotBlank() }.distinct()
     val filteredItems = if (activeCategory == "Todos") contentItems else contentItems.filter { it.category == activeCategory }
     ScreenFrame(title, "Conteúdo carregado da lista ativa", vm::backHome) {
         Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -639,7 +639,7 @@ private fun PlaylistScreen(vm: UnitvViewModel) {
 private fun LiveScreen(vm: UnitvViewModel) {
     val liveItems = vm.catalog.live
     var activeCategory by remember(liveItems) { mutableStateOf("Todos") }
-    val categories = listOf("Todos") + liveItems.map { it.category }.filter { it.isNotBlank() }.distinct().take(40)
+    val categories = listOf("Todos") + liveItems.map { it.category }.filter { it.isNotBlank() }.distinct()
     val filteredItems = if (activeCategory == "Todos") liveItems else liveItems.filter { it.category == activeCategory }
     ScreenFrame("Canais", "Todos os canais da lista ativa", vm::backHome) {
         Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
