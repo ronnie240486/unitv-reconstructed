@@ -277,8 +277,13 @@ class UnitvViewModel(
         catalogError = null
         catalogProgress = CatalogLoadProgress()
         val cached = appContext?.let { CatalogCache.load(it, playlist.id) }
-        if (cached != null && cached.hasAllPublicSections) {
+        if (cached != null && cached.hasCoreContent) {
             catalog = cached
+            selectedCatalogItem?.takeIf { it.kind == CatalogKind.SERIES }?.let { openSeries ->
+                seriesEpisodes = cached.seriesEpisodes[openSeries.id].orEmpty()
+                episodesLoading = false
+                episodesError = if (seriesEpisodes.isEmpty()) "Nenhum episódio disponível no cache." else null
+            }
             catalogReady = true
             // Mantém catalogLoading=true enquanto a atualização da fonte ocorre; o cache serve como fallback.
             catalogError = null
@@ -288,9 +293,36 @@ class UnitvViewModel(
             val loaded = catalogClient.load(
                 playlist,
                 onProgress = { progress -> catalogProgress = progress },
+                onInitial = { initial ->
+                    if (initial.hasCoreContent) {
+                        catalog = initial
+                        selectedCatalogItem?.takeIf { it.kind == CatalogKind.SERIES }?.let { openSeries ->
+                            seriesEpisodes = initial.seriesEpisodes[openSeries.id].orEmpty()
+                            if (seriesEpisodes.isNotEmpty()) {
+                                episodesLoading = false
+                                episodesError = null
+                            } else if (openSeries.id.startsWith("m3u-series-")) {
+                                episodesLoading = true
+                                episodesError = null
+                            }
+                        }
+                        catalogReady = true
+                        catalogLoading = true
+                        catalogError = null
+                        catalogProgress = catalogProgress.copy(
+                            stage = "Cards de canais, filmes e séries prontos; carregando detalhes em segundo plano",
+                            itemsRead = initial.total
+                        )
+                    }
+                }
             )
-            if (loaded.hasAllPublicSections) {
+            if (loaded.hasCoreContent) {
                 catalog = loaded
+                selectedCatalogItem?.takeIf { it.kind == CatalogKind.SERIES }?.let { openSeries ->
+                    seriesEpisodes = loaded.seriesEpisodes[openSeries.id].orEmpty()
+                    episodesLoading = false
+                    episodesError = if (seriesEpisodes.isEmpty()) "Nenhum episódio disponível para esta série." else null
+                }
                 catalogError = null
                 catalogReady = true
                 catalogProgress = catalogProgress.copy(
@@ -317,13 +349,13 @@ class UnitvViewModel(
                     estimated = false
                 )
                 catalogLoading = false
-            } else if (cached == null || !cached.hasAllPublicSections) {
-                catalogError = "A lista ainda não entregou canais, filmes, séries, Kids e Anime completos."
+            } else if (cached == null || !cached.hasCoreContent) {
+                catalogError = "A lista ainda não entregou canais, filmes e séries completos."
             }
         } catch (_: Exception) {
             if (cached == null) catalogError = "Não foi possível carregar o conteúdo da lista."
         } finally {
-            catalogReady = catalog.hasAllPublicSections && catalogError == null
+            catalogReady = catalog.hasCoreContent && catalogError == null
             catalogLoading = !catalogReady
         }
     }
@@ -407,11 +439,23 @@ class UnitvViewModel(
             seriesEpisodes = localEpisodes
             episodesError = null
             currentScreen = AppScreen.SERIES_EPISODES
-            if (localEpisodes.isNotEmpty()) return
-            if (!item.id.startsWith("m3u-series-") && selectedPlaylist?.username?.isNotBlank() == true && item.id.isNotBlank()) {
+            if (localEpisodes.isNotEmpty()) {
+                episodesLoading = false
+                return
+            }
+            if (item.id.startsWith("m3u-series-")) {
+                if (catalogLoading) {
+                    episodesLoading = true
+                    episodesError = null
+                } else {
+                    episodesLoading = false
+                    episodesError = "Esta série não possui episódios disponíveis na fonte M3U."
+                }
+            } else if (selectedPlaylist?.username?.isNotBlank() == true && item.id.isNotBlank()) {
                 loadSeriesEpisodes(item)
             } else {
-                episodesError = "Esta série não possui episódios disponíveis na fonte M3U."
+                episodesLoading = false
+                episodesError = "Esta série não possui episódios disponíveis na fonte."
             }
             return
         }

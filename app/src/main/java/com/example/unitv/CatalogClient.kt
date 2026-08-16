@@ -19,27 +19,29 @@ import org.json.JSONObject
 class CatalogClient {
     suspend fun load(
         playlist: Playlist,
-        onProgress: (CatalogLoadProgress) -> Unit = {}
+        onProgress: (CatalogLoadProgress) -> Unit = {},
+        onInitial: (CatalogSnapshot) -> Unit = {}
     ): CatalogSnapshot = withContext(Dispatchers.IO) {
         onProgress(CatalogLoadProgress(stage = "Conectando ao servidor"))
         if (playlist.directM3uUrl.isNotBlank()) {
-            val direct = runCatching { loadM3u(playlist.directM3uUrl, onProgress) }.getOrNull()
-            direct?.takeIf { it.total > 0 } ?: loadFromFallbackCandidates(playlist, onProgress)
+            val direct = runCatching { loadM3u(playlist.directM3uUrl, onProgress, onInitial) }.getOrNull()
+            direct?.takeIf { it.total > 0 } ?: loadFromFallbackCandidates(playlist, onProgress, onInitial)
         } else {
-            loadFromFallbackCandidates(playlist, onProgress)
+            loadFromFallbackCandidates(playlist, onProgress, onInitial)
         }
     }
 
     private fun loadFromFallbackCandidates(
         playlist: Playlist,
-        onProgress: (CatalogLoadProgress) -> Unit
+        onProgress: (CatalogLoadProgress) -> Unit,
+        onInitial: (CatalogSnapshot) -> Unit
     ): CatalogSnapshot {
         for (candidate in m3uCandidates(playlist)) {
-            val parsed = runCatching { loadM3u(candidate, onProgress) }.getOrNull()
+            val parsed = runCatching { loadM3u(candidate, onProgress, onInitial) }.getOrNull()
             if (parsed != null && parsed.total > 0) return parsed
         }
         onProgress(CatalogLoadProgress(stage = "Tentando outra fonte"))
-        return runCatching { loadXtream(playlist) }.getOrElse { CatalogSnapshot() }
+        return runCatching { loadXtream(playlist, onProgress, onInitial) }.getOrElse { CatalogSnapshot() }
     }
 
     private fun m3uCandidates(playlist: Playlist): List<String> {
@@ -56,7 +58,7 @@ class CatalogClient {
         return candidates.toList()
     }
 
-    private fun loadXtream(playlist: Playlist): CatalogSnapshot {
+    private fun loadXtream(playlist: Playlist, onProgress: (CatalogLoadProgress) -> Unit, onInitial: (CatalogSnapshot) -> Unit): CatalogSnapshot {
         require(playlist.username.isNotBlank() && playlist.password.isNotBlank())
         val base = playlist.url.trimEnd('/')
         val liveCategories = categoryMap("$base/player_api.php", playlist, "get_live_categories")
@@ -131,7 +133,7 @@ class CatalogClient {
                 streamUrl = item.streamUrl
             )
         }
-        return CatalogSnapshot(
+        val snapshot = CatalogSnapshot(
             live = grouped[CatalogKind.LIVE].orEmpty(),
             movies = grouped[CatalogKind.MOVIE].orEmpty(),
             series = grouped[CatalogKind.SERIES].orEmpty(),
@@ -139,20 +141,25 @@ class CatalogClient {
             anime = grouped[CatalogKind.ANIME].orEmpty(),
             adult = grouped[CatalogKind.ADULT].orEmpty()
         )
+        if (snapshot.hasCoreContent) {
+            onInitial(snapshot)
+            onProgress(CatalogLoadProgress(stage = "Cards principais prontos; episódios serão carregados ao abrir a série", itemsRead = snapshot.total))
+        }
+        return snapshot
     }
 
-        private fun loadM3u(url: String, onProgress: (CatalogLoadProgress) -> Unit): CatalogSnapshot {
+        private fun loadM3u(url: String, onProgress: (CatalogLoadProgress) -> Unit, onInitial: (CatalogSnapshot) -> Unit): CatalogSnapshot {
         val connection = open(url).apply { requestMethod = "GET" }
         return try {
             val tracker = ProgressTracker(connection.contentLengthLong, onProgress)
             val stream = CountingInputStream(responseStream(connection), tracker)
-            InputStreamReader(stream, Charsets.UTF_8).use { parseM3u(it, tracker) }
+            InputStreamReader(stream, Charsets.UTF_8).use { parseM3u(it, tracker, onProgress, onInitial) }
                 .also { tracker.finish() }
         } finally {
             connection.disconnect()
         }
     }
-    private fun parseM3u(reader: InputStreamReader, tracker: ProgressTracker): CatalogSnapshot {
+    private fun parseM3u(reader: InputStreamReader, tracker: ProgressTracker, onProgress: (CatalogLoadProgress) -> Unit, onInitial: (CatalogSnapshot) -> Unit): CatalogSnapshot {
 
         val live = mutableListOf<CatalogItem>()
         val movies = mutableListOf<CatalogItem>()
@@ -168,6 +175,7 @@ class CatalogClient {
         var externalSeriesId = ""
         var index = 0
         var total = 0
+        var initialEmitted = false
         val buffered = reader.buffered()
         while (total < MAX_M3U_ITEMS) {
             val raw = buffered.readLine() ?: break
@@ -224,6 +232,24 @@ class CatalogClient {
             }
             total++
             tracker.onItem(total)
+            val coreReady = live.isNotEmpty() && movies.isNotEmpty() && series.isNotEmpty()
+            val firstSnapshot = !initialEmitted && coreReady
+            val periodicSnapshot = initialEmitted && total % PARTIAL_SNAPSHOT_INTERVAL == 0
+            if (firstSnapshot || periodicSnapshot) {
+                if (firstSnapshot) {
+                    initialEmitted = true
+                    onProgress(CatalogLoadProgress(stage = "Cards principais prontos; carregando índice de episódios em segundo plano", itemsRead = total))
+                }
+                onInitial(CatalogSnapshot(
+                    live = live.toList(),
+                    movies = movies.toList(),
+                    series = series.toList(),
+                    kids = kids.toList(),
+                    anime = anime.toList(),
+                    adult = adult.toList(),
+                    seriesEpisodes = seriesEpisodes.mapValues { it.value.toList() }
+                ))
+            }
             index++
             metadata = ""
             image = ""
@@ -546,5 +572,6 @@ class CatalogClient {
         const val MAX_VOD_ITEMS = 500_000
         const val MAX_M3U_ITEMS = 500_000
         const val MAX_EPISODES = 500
+        const val PARTIAL_SNAPSHOT_INTERVAL = 2_000
     }
 }
