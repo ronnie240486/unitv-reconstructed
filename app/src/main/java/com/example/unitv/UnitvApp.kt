@@ -137,7 +137,7 @@ fun UnitvApp(vm: UnitvViewModel = viewModel()) {
         vm.updateDeviceId(DeviceIdentity.read12(context))
     }
     LaunchedEffect(vm.deviceAccess?.allowed, vm.playlists, vm.catalogReady, vm.catalogLoading, vm.catalogError) {
-        if ((vm.deviceAccess?.allowed == true || ProductConfig.api.useDemoData) && vm.playlists.isNotEmpty() && vm.catalogReady && !vm.catalogLoading && vm.catalogError == null) {
+        if ((vm.deviceAccess?.allowed == true || ProductConfig.api.useDemoData) && vm.playlists.isNotEmpty() && (vm.catalogReady || vm.catalogLoading) && vm.catalogError == null) {
             delay(450)
             showDeviceSetup = false
             vm.backHome()

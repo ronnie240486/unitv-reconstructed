@@ -1,4 +1,4 @@
-package: name='com.example.prestigie.reconstructed' versionCode='14' versionName='0.3.9-local-cache' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
+package: name='com.example.prestigie.reconstructed' versionCode='15' versionName='0.3.10-background-sync' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
 application-label:'Prestigie'
 application-icon-120:'res/drawable/prestigie_icon.png'
 application-icon-160:'res/drawable/prestigie_icon.png'
@@ -7,10 +7,10 @@ application-icon-320:'res/drawable/prestigie_icon.png'
 application-icon-480:'res/drawable/prestigie_icon.png'
 application-icon-640:'res/drawable/prestigie_icon.png'
 application-icon-65534:'res/drawable/prestigie_icon.png'
-44d0c3876bcffa1bc295e074255e98207df73bb15c09ce74bf06d69f9d1900f1  app/build/outputs/apk/debug/app-debug.apk
+fad3cd83b23f88c08f33d031887b0db7898e5ea32b5089770ddc2d8a2c37f64a  app/build/outputs/apk/debug/app-debug.apk
 Build: SUCCESS
 Testes: testDebugUnitTest concluído
-Cache: catálogo salvo em JSONL no armazenamento privado do app
-Inicialização: catálogo salvo restaurado antes da atualização
-Atualização: nova sincronização ocorre em segundo plano
-Versão: 0.3.9-local-cache / versionCode 14
+Abertura: Home liberada com lista autorizada mesmo durante atualização
+Cache: catálogo salvo restaurado antes da atualização quando disponível
+Fallback: catálogo anterior preservado em resposta vazia/falha
+Versão: 0.3.10-background-sync / versionCode 15
