@@ -277,7 +277,7 @@ class UnitvViewModel(
         catalogError = null
         catalogProgress = CatalogLoadProgress()
         val cached = appContext?.let { CatalogCache.load(it, playlist.id) }
-        if (cached != null && cached.hasCoreContent) {
+        if (cached != null && cached.hasAllPublicSections) {
             catalog = cached
             catalogReady = true
             // Mantém catalogLoading=true enquanto a atualização da fonte ocorre; o cache serve como fallback.
@@ -289,7 +289,7 @@ class UnitvViewModel(
                 playlist,
                 onProgress = { progress -> catalogProgress = progress },
             )
-            if (loaded.hasCoreContent) {
+            if (loaded.hasAllPublicSections) {
                 catalog = loaded
                 catalogError = null
                 catalogReady = true
@@ -317,13 +317,13 @@ class UnitvViewModel(
                     estimated = false
                 )
                 catalogLoading = false
-            } else if (cached == null || !cached.hasCoreContent) {
-                catalogError = "A lista ainda não entregou canais, filmes e séries completos."
+            } else if (cached == null || !cached.hasAllPublicSections) {
+                catalogError = "A lista ainda não entregou canais, filmes, séries, Kids e Anime completos."
             }
         } catch (_: Exception) {
             if (cached == null) catalogError = "Não foi possível carregar o conteúdo da lista."
         } finally {
-            catalogReady = catalog.hasCoreContent && catalogError == null
+            catalogReady = catalog.hasAllPublicSections && catalogError == null
             catalogLoading = !catalogReady
         }
     }
@@ -464,6 +464,7 @@ class UnitvViewModel(
 
     fun selectCategory(category: String) {
         selectedCategory = category
+        if (category == "Ao vivo" || category == "Canais") selectedSection = AppSection.LIVE
         currentScreen = when (category) {
             "Kids" -> AppScreen.KIDS
             "Anime" -> AppScreen.ANIME
@@ -497,7 +498,13 @@ class UnitvViewModel(
     fun openFilters() { currentScreen = AppScreen.FILTERS }
     fun openHelp() { currentScreen = AppScreen.HELP }
     fun backHome() { currentScreen = AppScreen.HOME; selectedSection = AppSection.HOME }
-    fun openAccountScreen(screen: AppScreen) { currentScreen = screen }
+    fun openAccountScreen(screen: AppScreen) {
+        if (screen == AppScreen.ADULT && !parentalUnlocked) {
+            requestAdultAccess()
+        } else {
+            currentScreen = screen
+        }
+    }
     fun showNotice(message: String) { notice = message }
     fun dismissNotice() { notice = null }
 

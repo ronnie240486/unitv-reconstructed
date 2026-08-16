@@ -56,4 +56,7 @@ data class CatalogSnapshot(
 
     val hasCoreContent: Boolean
         get() = live.isNotEmpty() && movies.isNotEmpty() && series.isNotEmpty()
+
+    val hasAllPublicSections: Boolean
+        get() = hasCoreContent && kids.isNotEmpty() && anime.isNotEmpty()
 }

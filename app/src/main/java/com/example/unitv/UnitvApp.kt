@@ -151,7 +151,7 @@ fun UnitvApp(vm: UnitvViewModel = viewModel()) {
         }
     }
     LaunchedEffect(vm.deviceAccess?.allowed, vm.playlists, vm.catalogReady, vm.catalogLoading, vm.catalogError, vm.catalogProgress.percent, vm.catalogProgress.itemsRead) {
-        val hasCompleteCatalog = vm.catalog.hasCoreContent
+        val hasCompleteCatalog = vm.catalog.hasAllPublicSections
         if ((vm.accessLoading || vm.playlistsLoading || vm.catalogLoading) && !hasCompleteCatalog) {
             showDeviceSetup = true
         } else if ((vm.deviceAccess?.allowed == true || ProductConfig.api.useDemoData) && vm.playlists.isNotEmpty() && vm.catalogReady && hasCompleteCatalog && vm.catalogError == null) {
@@ -1103,6 +1103,9 @@ private fun SecurityScreen(vm: UnitvViewModel) {
 
 @Composable
 private fun AdultCatalogScreen(vm: UnitvViewModel) {
+    LaunchedEffect(Unit) {
+        if (!vm.parentalUnlocked && !vm.parentalPinRequested) vm.requestAdultAccess()
+    }
     if (!vm.parentalUnlocked) {
         InfoListScreen("Conteúdo protegido", "Informe o PIN parental para continuar", Icons.Default.Lock, vm::backHome, listOf("Área protegida"))
         return

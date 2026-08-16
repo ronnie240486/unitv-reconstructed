@@ -12,8 +12,8 @@ android {
         applicationId = "com.example.prestigie.reconstructed"
         minSdk = 26
         targetSdk = 35
-        versionCode = 22
-        versionName = "0.4.1-full-catalog-gate"
+        versionCode = 23
+        versionName = "0.4.2-kids-channels-parental"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
