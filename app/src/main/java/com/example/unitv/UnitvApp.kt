@@ -96,6 +96,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -420,8 +422,9 @@ private fun ScreenContent(vm: UnitvViewModel) {
         AppScreen.SPORTS -> SportsScreen(vm)
         AppScreen.PROFILE -> ProfileScreen(vm)
         AppScreen.LISTS -> PlaylistScreen(vm)
-        AppScreen.KIDS -> CatalogScreen(vm, "Kids", vm.allCatalog.filter { it.category.contains("kids", true) || it.title.contains("kids", true) })
-        AppScreen.ANIME -> CatalogScreen(vm, "Anime", vm.allCatalog.filter { it.category.contains("anime", true) || it.title.contains("anime", true) })
+        AppScreen.KIDS -> CatalogScreen(vm, "Kids", vm.catalog.kids)
+        AppScreen.ANIME -> CatalogScreen(vm, "Anime", vm.catalog.anime)
+        AppScreen.ADULT -> AdultCatalogScreen(vm)
         AppScreen.EXPLORE -> CatalogScreen(vm, "Explorar", vm.allCatalog)
         AppScreen.NOTIFICATIONS -> InfoListScreen("Notificações", "Avisos, novidades e recomendações", Icons.Default.Notifications, vm::backHome, listOf("Novidades do catálogo", "Seu conteúdo foi atualizado", "Confira os destaques da semana"))
         AppScreen.HISTORY -> InfoListScreen("Histórico", "Continue de onde parou", Icons.Default.History, vm::backHome, listOf("Conteúdos recentes", "Seu histórico será preenchido pelo player"))
@@ -579,6 +582,9 @@ private fun CatalogCard(item: CatalogItem, vm: UnitvViewModel) {
                     CatalogKind.LIVE -> Icons.Default.Wifi
                     CatalogKind.MOVIE -> Icons.Default.PlayArrow
                     CatalogKind.SERIES -> Icons.Default.Event
+                    CatalogKind.KIDS -> Icons.Default.Info
+                    CatalogKind.ANIME -> Icons.Default.Star
+                    CatalogKind.ADULT -> Icons.Default.Lock
                 },
                 contentDescription = null,
                 tint = PrestigieGold,
@@ -970,11 +976,58 @@ private fun SettingsScreen(vm: UnitvViewModel) {
 
 @Composable
 private fun SecurityScreen(vm: UnitvViewModel) {
+    var showPin by remember { mutableStateOf(false) }
+    var pin by remember { mutableStateOf("") }
+    var pinError by remember { mutableStateOf(false) }
     ScreenFrame("Segurança da conta", "Senha, vínculo e controle parental", vm::backHome) {
         Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
             FocusRow("Alterar senha", "Atualize sua senha", Icons.Default.Lock) { vm.showNotice("Fluxo requer AuthRepository autorizado.") }
-            FocusRow("Controle parental", "Proteja conteúdo restrito", Icons.Default.Lock) { vm.showNotice("Controle parental local demonstrativo.") }
+            FocusRow("Conteúdo adulto", "Acesso protegido por PIN parental", Icons.Default.Lock) {
+                pin = ""
+                pinError = false
+                showPin = true
+            }
             FocusRow("Vincular contato", "E-mail ou telefone", Icons.Default.Person) { vm.showNotice("Vínculo requer backend legítimo.") }
+        }
+    }
+    if (showPin) {
+        AlertDialog(
+            onDismissRequest = { showPin = false },
+            title = { Text("PIN parental") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Digite o PIN para acessar o conteúdo adulto.")
+                    OutlinedTextField(
+                        value = pin,
+                        onValueChange = { pin = it.filter(Char::isDigit).take(8); pinError = false },
+                        label = { Text("PIN") },
+                        singleLine = true,
+                        isError = pinError,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword)
+                    )
+                    if (pinError) Text("PIN incorreto.", color = Color(0xFFFF8A80))
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (vm.verifyParentalPin(pin)) showPin = false else pinError = true
+                }) { Text("Acessar") }
+            },
+            dismissButton = { TextButton(onClick = { showPin = false }) { Text("Cancelar") } }
+        )
+    }
+}
+
+@Composable
+private fun AdultCatalogScreen(vm: UnitvViewModel) {
+    if (!vm.parentalUnlocked) {
+        InfoListScreen("Conteúdo protegido", "Informe o PIN parental para continuar", Icons.Default.Lock, vm::backHome, listOf("Área protegida"))
+        return
+    }
+    ScreenFrame("Conteúdo adulto", "Área protegida por PIN parental", vm::lockParentalContent) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("Esta área é privada e protegida.", color = TextMuted)
+            CatalogSection("Conteúdo autorizado", vm.adultCatalog, vm)
         }
     }
 }

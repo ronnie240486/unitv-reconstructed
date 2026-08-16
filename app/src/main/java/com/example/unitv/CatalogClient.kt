@@ -119,7 +119,26 @@ class CatalogClient {
                 )
             }
         }
-        return CatalogSnapshot(live = live, movies = movies, series = series)
+        val grouped = (live + movies + series).groupBy { item ->
+            M3uClassifier.classify(
+                group = item.category,
+                title = item.title,
+                mediaType = when {
+                    item.kind == CatalogKind.LIVE -> "live"
+                    item.kind == CatalogKind.SERIES -> "series"
+                    else -> "movie"
+                },
+                streamUrl = item.streamUrl
+            )
+        }
+        return CatalogSnapshot(
+            live = grouped[CatalogKind.LIVE].orEmpty(),
+            movies = grouped[CatalogKind.MOVIE].orEmpty(),
+            series = grouped[CatalogKind.SERIES].orEmpty(),
+            kids = grouped[CatalogKind.KIDS].orEmpty(),
+            anime = grouped[CatalogKind.ANIME].orEmpty(),
+            adult = grouped[CatalogKind.ADULT].orEmpty()
+        )
     }
 
         private fun loadM3u(url: String, onProgress: (CatalogLoadProgress) -> Unit): CatalogSnapshot {
@@ -138,6 +157,9 @@ class CatalogClient {
         val live = mutableListOf<CatalogItem>()
         val movies = mutableListOf<CatalogItem>()
         val series = mutableListOf<CatalogItem>()
+        val kids = mutableListOf<CatalogItem>()
+        val anime = mutableListOf<CatalogItem>()
+        val adult = mutableListOf<CatalogItem>()
         val seriesEpisodes = LinkedHashMap<String, MutableList<SeriesEpisode>>()
         var metadata = ""
         var image = ""
@@ -190,6 +212,15 @@ class CatalogClient {
                     val episode = episodeFromM3u("m3u-episode-$index", metadata, image, line)
                     seriesEpisodes.getOrPut(seriesId) { mutableListOf() } += episode
                 }
+                CatalogKind.KIDS -> if (kids.size < MAX_VOD_ITEMS) {
+                    kids += CatalogItem("m3u-$index", metadata, group, CatalogKind.KIDS, image, line)
+                }
+                CatalogKind.ANIME -> if (anime.size < MAX_VOD_ITEMS) {
+                    anime += CatalogItem("m3u-$index", metadata, group, CatalogKind.ANIME, image, line)
+                }
+                CatalogKind.ADULT -> if (adult.size < MAX_VOD_ITEMS) {
+                    adult += CatalogItem("m3u-$index", metadata, group, CatalogKind.ADULT, image, line)
+                }
             }
             total++
             tracker.onItem(total)
@@ -204,6 +235,9 @@ class CatalogClient {
             live = live,
             movies = movies,
             series = series,
+            kids = kids,
+            anime = anime,
+            adult = adult,
             seriesEpisodes = seriesEpisodes.mapValues { it.value.toList() }
         )
     }

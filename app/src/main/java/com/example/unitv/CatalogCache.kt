@@ -12,6 +12,9 @@ object CatalogCache {
         val live = mutableListOf<CatalogItem>()
         val movies = mutableListOf<CatalogItem>()
         val series = mutableListOf<CatalogItem>()
+        val kids = mutableListOf<CatalogItem>()
+        val anime = mutableListOf<CatalogItem>()
+        val adult = mutableListOf<CatalogItem>()
         val episodes = LinkedHashMap<String, MutableList<SeriesEpisode>>()
         return runCatching {
             file.bufferedReader(Charsets.UTF_8).useLines { lines ->
@@ -25,6 +28,9 @@ object CatalogCache {
                                 CatalogKind.LIVE -> live += item
                                 CatalogKind.MOVIE -> movies += item
                                 CatalogKind.SERIES -> series += item
+                                CatalogKind.KIDS -> kids += item
+                                CatalogKind.ANIME -> anime += item
+                                CatalogKind.ADULT -> adult += item
                             }
                         }
                         "episode" -> {
@@ -46,6 +52,9 @@ object CatalogCache {
                 live = live,
                 movies = movies,
                 series = series,
+                kids = kids,
+                anime = anime,
+                adult = adult,
                 seriesEpisodes = episodes.mapValues { it.value.toList() }
             ).takeIf { it.total > 0 }
         }.getOrNull()
@@ -73,6 +82,9 @@ object CatalogCache {
                 snapshot.live.forEach(::writeItem)
                 snapshot.movies.forEach(::writeItem)
                 snapshot.series.forEach(::writeItem)
+                snapshot.kids.forEach(::writeItem)
+                snapshot.anime.forEach(::writeItem)
+                snapshot.adult.forEach(::writeItem)
                 snapshot.seriesEpisodes.forEach { (seriesId, list) ->
                     list.forEach { episode ->
                         writer.appendLine(

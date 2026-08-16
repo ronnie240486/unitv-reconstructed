@@ -93,8 +93,15 @@ class UnitvViewModel(
                 it.subtitle.contains(searchQuery, ignoreCase = true)
         }
 
+    /** Catálogo público: Adultos nunca entra nesta coleção. */
     val allCatalog: List<CatalogItem>
-        get() = catalog.live + catalog.movies + catalog.series
+        get() = catalog.live + catalog.movies + catalog.series + catalog.kids + catalog.anime
+
+    val adultCatalog: List<CatalogItem>
+        get() = catalog.adult
+
+    var parentalUnlocked by mutableStateOf(false)
+        private set
 
     val filteredCatalog: List<CatalogItem>
         get() = if (searchQuery.isBlank()) allCatalog else allCatalog.filter {
@@ -307,6 +314,31 @@ class UnitvViewModel(
     }
 
     fun openLists() { currentScreen = AppScreen.LISTS }
+
+    fun verifyParentalPin(input: String): Boolean {
+        val expected = appContext?.getSharedPreferences("prestigie_parental", Context.MODE_PRIVATE)
+            ?.getString("pin", "1234") ?: "1234"
+        val valid = input == expected
+        if (valid) {
+            parentalUnlocked = true
+            currentScreen = AppScreen.ADULT
+        }
+        return valid
+    }
+
+    fun changeParentalPin(input: String): Boolean {
+        val pin = input.filter(Char::isDigit).take(8)
+        if (pin.length < 4) return false
+        appContext?.getSharedPreferences("prestigie_parental", Context.MODE_PRIVATE)
+            ?.edit()?.putString("pin", pin)?.apply()
+        parentalUnlocked = true
+        return true
+    }
+
+    fun lockParentalContent() {
+        parentalUnlocked = false
+        backHome()
+    }
 
     fun selectSection(section: AppSection) {
         selectedSection = section

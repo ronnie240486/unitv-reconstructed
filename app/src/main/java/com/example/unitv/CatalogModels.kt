@@ -15,7 +15,10 @@ data class CatalogItem(
 enum class CatalogKind {
     LIVE,
     MOVIE,
-    SERIES
+    SERIES,
+    KIDS,
+    ANIME,
+    ADULT
 }
 
 data class SeriesEpisode(
@@ -38,8 +41,11 @@ data class CatalogSnapshot(
     val live: List<CatalogItem> = emptyList(),
     val movies: List<CatalogItem> = emptyList(),
     val series: List<CatalogItem> = emptyList(),
+    val kids: List<CatalogItem> = emptyList(),
+    val anime: List<CatalogItem> = emptyList(),
+    val adult: List<CatalogItem> = emptyList(),
     val seriesEpisodes: Map<String, List<SeriesEpisode>> = emptyMap()
 ) {
     val total: Int
-        get() = live.size + movies.size + series.size
+        get() = live.size + movies.size + series.size + kids.size + anime.size + adult.size
 }

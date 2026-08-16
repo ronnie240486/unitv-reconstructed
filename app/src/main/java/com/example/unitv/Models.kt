@@ -21,6 +21,7 @@ enum class AppScreen {
     LISTS,
     KIDS,
     ANIME,
+    ADULT,
     EXPLORE,
     NOTIFICATIONS,
     HISTORY,
