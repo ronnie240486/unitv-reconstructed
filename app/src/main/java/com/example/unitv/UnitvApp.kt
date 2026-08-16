@@ -63,6 +63,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -614,7 +615,21 @@ private fun CatalogScreen(vm: UnitvViewModel, title: String, contentItems: List<
                 }
             }
             if (filteredItems.isEmpty()) {
-                Text("Nenhum conteúdo disponível nesta categoria.", color = TextMuted)
+                when {
+                    vm.catalogLoading -> {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 28.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            CircularProgressIndicator(color = PrestigieGold)
+                            Text("Carregando conteúdo desta categoria…", color = TextMuted)
+                            Text("A lista está sendo atualizada em segundo plano.", color = TextMuted, fontSize = 12.sp)
+                        }
+                    }
+                    vm.catalogError != null -> Text(vm.catalogError.orEmpty(), color = Color(0xFFFFB4AB))
+                    else -> Text("Nenhum conteúdo disponível nesta categoria.", color = TextMuted)
+                }
             } else {
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(minSize = 150.dp),
