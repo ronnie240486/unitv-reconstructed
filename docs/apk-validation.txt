@@ -1,4 +1,4 @@
-package: name='com.example.prestigie.reconstructed' versionCode='6' versionName='0.3.1-full-m3u' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
+package: name='com.example.prestigie.reconstructed' versionCode='7' versionName='0.3.2-loadstate' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
 application-label:'Prestigie'
 application-icon-120:'res/drawable/prestigie_icon.png'
 application-icon-160:'res/drawable/prestigie_icon.png'
@@ -7,10 +7,9 @@ application-icon-320:'res/drawable/prestigie_icon.png'
 application-icon-480:'res/drawable/prestigie_icon.png'
 application-icon-640:'res/drawable/prestigie_icon.png'
 application-icon-65534:'res/drawable/prestigie_icon.png'
-0189539931b06f879c1f27b6e33bb4aeef2276f9bd7d058d936e3c6df066804e  app/build/outputs/apk/debug/app-debug.apk
+17781ef985fefd5d5c5472ccb5f382400faae6cc9337b091af75e46736eaae85  app/build/outputs/apk/debug/app-debug.apk
 Build: SUCCESS
 Testes: testDebugUnitTest concluído
-Fonte: M3U principal priorizada; Xtream apenas como fallback
-Catálogo: limites ampliados para 500000 itens e leitura em fluxo
-Categorias: group-title completo, sem corte visual
-Versão: 0.3.1-full-m3u / versionCode 6
+Home: aguarda catalogReady e não mostra zeros durante importação
+Erro: exibido na tela sem liberar a Home
+Versão: 0.3.2-loadstate / versionCode 7

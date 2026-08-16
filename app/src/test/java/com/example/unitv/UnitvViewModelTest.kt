@@ -29,6 +29,20 @@ class UnitvViewModelTest {
     }
 
     @Test
+    fun channelsCategoryOpensLiveScreen() {
+        val viewModel = UnitvViewModel()
+        viewModel.selectCategory("Canais")
+        assertEquals(AppScreen.LIVE, viewModel.currentScreen)
+    }
+
+    @Test
+    fun catalogStartsNotReady() {
+        val viewModel = UnitvViewModel()
+        assertTrue(!viewModel.catalogReady)
+        assertTrue(!viewModel.catalogLoading)
+    }
+
+    @Test
     fun deviceIdentityAlwaysReturnsTwelveHexCharacters() {
         assertEquals("001122AABBCC", DeviceIdentity.normalize12("00:11:22:aa:bb:cc"))
         assertEquals("00:11:22:AA:BB:CC", DeviceIdentity.toMac("001122AABBCC"))

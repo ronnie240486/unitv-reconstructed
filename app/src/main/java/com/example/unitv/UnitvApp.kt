@@ -127,8 +127,8 @@ fun UnitvApp(vm: UnitvViewModel = viewModel()) {
     LaunchedEffect(context) {
         vm.updateDeviceId(DeviceIdentity.read12(context))
     }
-    LaunchedEffect(vm.deviceAccess?.allowed, vm.playlists) {
-        if ((vm.deviceAccess?.allowed == true || ProductConfig.api.useDemoData) && vm.playlists.isNotEmpty()) {
+    LaunchedEffect(vm.deviceAccess?.allowed, vm.playlists, vm.catalogReady, vm.catalogLoading, vm.catalogError) {
+        if ((vm.deviceAccess?.allowed == true || ProductConfig.api.useDemoData) && vm.playlists.isNotEmpty() && vm.catalogReady && !vm.catalogLoading && vm.catalogError == null) {
             delay(450)
             showDeviceSetup = false
             vm.backHome()
@@ -235,13 +235,15 @@ private fun DeviceIdentityScreen(vm: UnitvViewModel, onContinue: () -> Unit) {
             Text("A tela exibe 12 caracteres; o botão Copiar usa o formato MAC do backend.", color = TextMuted, fontSize = 12.sp)
             when {
                 vm.accessLoading -> Text("Validando aparelho no servidor…", color = TextMuted)
-                vm.deviceAccess?.allowed == true -> Text("Aparelho liberado · ${vm.deviceAccess?.status.orEmpty()}", color = Color(0xFF78E39A))
+                vm.deviceAccess?.allowed == true && vm.catalogLoading -> Text("Importando canais, filmes, séries e categorias da M3U…", color = PrestigieGold)
+                vm.deviceAccess?.allowed == true && vm.catalogError != null -> Text(vm.catalogError.orEmpty(), color = Color(0xFFFFB4AB))
+                vm.deviceAccess?.allowed == true && vm.catalogReady -> Text("Aparelho liberado · catálogo carregado", color = Color(0xFF78E39A))
                 vm.deviceAccess != null -> Text("Acesso indisponível para este aparelho.", color = Color(0xFFFFB4AB))
                 vm.playlistsError != null -> Text(vm.playlistsError.orEmpty(), color = Color(0xFFFFB4AB))
             }
             Button(
                 onClick = onContinue,
-                enabled = ProductConfig.api.useDemoData || vm.deviceAccess?.allowed == true,
+                enabled = ProductConfig.api.useDemoData || (vm.deviceAccess?.allowed == true && vm.catalogReady && vm.catalogError == null),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xCC8C5215), contentColor = Color.White)
             ) {
                 Text("Continuar")
@@ -427,10 +429,25 @@ private fun HomeScreen(vm: UnitvViewModel) {
             }
         }
         item {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                SummaryCard("Canais", vm.catalog.live.size, Icons.Default.Wifi, Modifier.weight(1f)) { vm.selectCategory("Ao vivo") }
-                SummaryCard("Filmes", vm.catalog.movies.size, Icons.Default.PlayArrow, Modifier.weight(1f)) { vm.selectCategory("Filmes") }
-                SummaryCard("Séries", vm.catalog.series.size, Icons.Default.Event, Modifier.weight(1f)) { vm.selectCategory("Séries") }
+            if (vm.catalogLoading && !vm.catalogReady) {
+                Card(colors = CardDefaults.cardColors(containerColor = WinePanel), shape = RoundedCornerShape(14.dp)) {
+                    Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Refresh, contentDescription = null, tint = PrestigieGold, modifier = Modifier.size(25.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Column {
+                            Text("Carregando catálogo completo", color = Color.White, fontWeight = FontWeight.Bold)
+                            Text("Aguarde a importação da M3U…", color = TextMuted, fontSize = 12.sp)
+                        }
+                    }
+                }
+            } else if (vm.catalogError != null) {
+                Text(vm.catalogError.orEmpty(), color = Color(0xFFFFB4AB))
+            } else {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SummaryCard("Canais", vm.catalog.live.size, Icons.Default.Wifi, Modifier.weight(1f)) { vm.selectCategory("Canais") }
+                    SummaryCard("Filmes", vm.catalog.movies.size, Icons.Default.PlayArrow, Modifier.weight(1f)) { vm.selectCategory("Filmes") }
+                    SummaryCard("Séries", vm.catalog.series.size, Icons.Default.Event, Modifier.weight(1f)) { vm.selectCategory("Séries") }
+                }
             }
         }
         item {

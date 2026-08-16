@@ -66,6 +66,8 @@ class UnitvViewModel(
         private set
     var catalogLoading by mutableStateOf(false)
         private set
+    var catalogReady by mutableStateOf(false)
+        private set
     var catalogError by mutableStateOf<String?>(null)
         private set
     var accessLoading by mutableStateOf(false)
@@ -126,6 +128,7 @@ class UnitvViewModel(
                         movies = vodItems.map { CatalogItem(it.id, it.title, it.category, CatalogKind.MOVIE) },
                         series = vodItems.map { CatalogItem(it.id, it.title, "Séries", CatalogKind.SERIES) }
                     )
+                    catalogReady = true
                 } else {
                     val access = backend.checkDevice(macAddress)
                     deviceAccess = access
@@ -133,6 +136,7 @@ class UnitvViewModel(
                         playlists = emptyList()
                         selectedPlaylistId = null
                         catalog = CatalogSnapshot()
+                        catalogReady = false
                         playlistsError = "Acesso indisponível para este aparelho."
                         notice = "Este aparelho não está liberado para reproduzir conteúdo."
                     } else {
@@ -142,6 +146,7 @@ class UnitvViewModel(
                             playlist.copy(directM3uUrl = if (index == 0) access.urlM3u8 else playlist.directM3uUrl)
                         }
                         selectFirstPlaylistIfNeeded()
+                        catalogReady = false
                         loadSelectedCatalog()
                         backend.heartbeat(macAddress)
                         syncNotificationsAndCommands()
@@ -226,15 +231,18 @@ class UnitvViewModel(
     private fun loadSelectedCatalog() {
         val playlist = selectedPlaylist ?: return
         catalogJob?.cancel()
+        catalogReady = false
+        catalogLoading = true
+        catalogError = null
         catalogJob = viewModelScope.launch(Dispatchers.IO) {
-            catalogLoading = true
-            catalogError = null
             try {
-                catalog = catalogClient.load(playlist)
-                if (catalog.total == 0) catalogError = "A lista respondeu sem canais, filmes ou séries."
+                val loaded = catalogClient.load(playlist)
+                catalog = loaded
+                if (loaded.total == 0) catalogError = "A lista respondeu sem canais, filmes ou séries."
             } catch (_: Exception) {
                 catalogError = "Não foi possível carregar o conteúdo da lista."
             } finally {
+                catalogReady = true
                 catalogLoading = false
             }
         }
