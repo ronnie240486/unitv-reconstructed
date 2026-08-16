@@ -131,6 +131,8 @@ fun UnitvApp(vm: UnitvViewModel = viewModel()) {
     val context = LocalContext.current
     var showIntro by remember { mutableStateOf(true) }
     var showDeviceSetup by remember { mutableStateOf(true) }
+    var globalParentalPin by remember { mutableStateOf("") }
+    var globalParentalPinError by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         delay(1500)
         showIntro = false
@@ -139,8 +141,16 @@ fun UnitvApp(vm: UnitvViewModel = viewModel()) {
         vm.attachContext(context)
         vm.updateDeviceId(DeviceIdentity.read12(context))
     }
-    LaunchedEffect(vm.deviceAccess?.allowed, vm.playlists, vm.catalogReady, vm.catalogLoading, vm.catalogError) {
-        if ((vm.deviceAccess?.allowed == true || ProductConfig.api.useDemoData) && vm.playlists.isNotEmpty() && (vm.catalogReady || vm.catalogLoading) && vm.catalogError == null) {
+    LaunchedEffect(vm.parentalPinRequested) {
+        if (vm.parentalPinRequested) {
+            globalParentalPin = ""
+            globalParentalPinError = false
+        }
+    }
+    LaunchedEffect(vm.deviceAccess?.allowed, vm.playlists, vm.catalogReady, vm.catalogLoading, vm.catalogError, vm.catalogProgress.percent) {
+        if (vm.catalogLoading || vm.accessLoading || vm.playlistsLoading) {
+            showDeviceSetup = true
+        } else if ((vm.deviceAccess?.allowed == true || ProductConfig.api.useDemoData) && vm.playlists.isNotEmpty() && vm.catalogReady && vm.catalogError == null) {
             delay(450)
             showDeviceSetup = false
             vm.backHome()
@@ -164,6 +174,33 @@ fun UnitvApp(vm: UnitvViewModel = viewModel()) {
             title = { Text("Prestigie") },
             text = { Text(message) },
             confirmButton = { TextButton(onClick = vm::dismissNotice) { Text("OK") } }
+        )
+    }
+    if (vm.parentalPinRequested) {
+        AlertDialog(
+            onDismissRequest = vm::cancelParentalPin,
+            title = { Text("Conteúdo protegido") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Digite o PIN parental para acessar este conteúdo.")
+                    OutlinedTextField(
+                        value = globalParentalPin,
+                        onValueChange = { globalParentalPin = it.filter(Char::isDigit).take(8); globalParentalPinError = false },
+                        label = { Text("PIN parental") },
+                        singleLine = true,
+                        isError = globalParentalPinError,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                        visualTransformation = PasswordVisualTransformation()
+                    )
+                    if (globalParentalPinError) Text("PIN incorreto.", color = Color(0xFFFF8A80))
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (!vm.verifyParentalPin(globalParentalPin)) globalParentalPinError = true
+                }) { Text("Acessar") }
+            },
+            dismissButton = { TextButton(onClick = vm::cancelParentalPin) { Text("Cancelar") } }
         )
     }
 }

@@ -1,4 +1,4 @@
-package: name='com.example.prestigie.reconstructed' versionCode='17' versionName='0.3.12-kids-anime-parental' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
+package: name='com.example.prestigie.reconstructed' versionCode='19' versionName='0.3.14-mac-sync-gate' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
 application-label:'Prestigie'
 application-icon-120:'res/drawable/prestigie_icon.png'
 application-icon-160:'res/drawable/prestigie_icon.png'
@@ -7,9 +7,9 @@ application-icon-320:'res/drawable/prestigie_icon.png'
 application-icon-480:'res/drawable/prestigie_icon.png'
 application-icon-640:'res/drawable/prestigie_icon.png'
 application-icon-65534:'res/drawable/prestigie_icon.png'
-5457bf4e614378add240641d19b393006c848c7c20c1fbea514771659d48c7dd  app/build/outputs/apk/debug/app-debug.apk
+23323767762ee20413adf5c49c542fc59cdfb89c0c3b4d9863d9647b36a8ac6c  app/build/outputs/apk/debug/app-debug.apk
 Build: SUCCESS
 Testes: testDebugUnitTest concluído
-Kids/Anime: classificação por group-title, tvg-type, URL e tokens explícitos
-Adultos: fora do catálogo público e acessíveis somente por PIN parental
-Versão: 0.3.12-kids-anime-parental / versionCode 17
+Atualização: toda sincronização reabre a tela MAC
+Liberação: somente após catálogo válido, preservando cache anterior
+Versão: 0.3.14-mac-sync-gate / versionCode 19

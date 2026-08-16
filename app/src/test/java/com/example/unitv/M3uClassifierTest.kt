@@ -35,4 +35,20 @@ class M3uClassifierTest {
             M3uClassifier.classify("Series | Legendadas", "Black Torch S01E07", "series", "http://server/series/4.mkv")
         )
     }
+
+    @Test
+    fun `animacao de filme vai para kids`() {
+        assertEquals(
+            CatalogKind.KIDS,
+            M3uClassifier.classify("Filmes | Animação", "Aventura", "movie", "http://server/movie/5.mp4")
+        )
+    }
+
+    @Test
+    fun `serie crunchyroll vai para anime`() {
+        assertEquals(
+            CatalogKind.ANIME,
+            M3uClassifier.classify("Series | Crunchyroll", "Temporada 1", "series", "http://server/series/6.mkv")
+        )
+    }
 }

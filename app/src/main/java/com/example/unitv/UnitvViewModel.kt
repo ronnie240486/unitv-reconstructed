@@ -102,6 +102,9 @@ class UnitvViewModel(
 
     var parentalUnlocked by mutableStateOf(false)
         private set
+    var parentalPinRequested by mutableStateOf(false)
+        private set
+    private var pendingAdultItem: CatalogItem? = null
 
     val filteredCatalog: List<CatalogItem>
         get() = if (searchQuery.isBlank()) allCatalog else allCatalog.filter {
@@ -277,7 +280,7 @@ class UnitvViewModel(
         if (cached != null && cached.total > 0) {
             catalog = cached
             catalogReady = true
-            catalogLoading = false
+            // Mantém catalogLoading=true enquanto a atualização da fonte ocorre; o cache serve como fallback.
             catalogError = null
             catalogProgress = CatalogLoadProgress(100, 0, 0, estimated = false)
         }
@@ -315,13 +318,26 @@ class UnitvViewModel(
 
     fun openLists() { currentScreen = AppScreen.LISTS }
 
+    fun requestAdultAccess(item: CatalogItem? = null) {
+        pendingAdultItem = item
+        parentalPinRequested = true
+    }
+
+    fun cancelParentalPin() {
+        pendingAdultItem = null
+        parentalPinRequested = false
+    }
+
     fun verifyParentalPin(input: String): Boolean {
         val expected = appContext?.getSharedPreferences("prestigie_parental", Context.MODE_PRIVATE)
             ?.getString("pin", "1234") ?: "1234"
         val valid = input == expected
         if (valid) {
             parentalUnlocked = true
-            currentScreen = AppScreen.ADULT
+            parentalPinRequested = false
+            val pending = pendingAdultItem
+            pendingAdultItem = null
+            if (pending != null) openCatalogItemUnlocked(pending) else currentScreen = AppScreen.ADULT
         }
         return valid
     }
@@ -354,6 +370,14 @@ class UnitvViewModel(
     fun openVod(item: VodItem) { selectedVod = item; currentScreen = AppScreen.VOD_DETAILS }
 
     fun openCatalogItem(item: CatalogItem) {
+        if (item.kind == CatalogKind.ADULT && !parentalUnlocked) {
+            requestAdultAccess(item)
+            return
+        }
+        openCatalogItemUnlocked(item)
+    }
+
+    private fun openCatalogItemUnlocked(item: CatalogItem) {
         selectedCatalogItem = item
         if (item.kind == CatalogKind.SERIES) {
             val localEpisodes = catalog.seriesEpisodes[item.id].orEmpty()
