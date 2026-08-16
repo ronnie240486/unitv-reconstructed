@@ -133,7 +133,6 @@ private data class HeaderAction(val icon: ImageVector, val label: String, val ac
 fun UnitvApp(vm: UnitvViewModel = viewModel()) {
     val context = LocalContext.current
     var showIntro by remember { mutableStateOf(true) }
-    var showDeviceSetup by remember { mutableStateOf(true) }
     var globalParentalPin by remember { mutableStateOf("") }
     var globalParentalPinError by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
@@ -150,24 +149,19 @@ fun UnitvApp(vm: UnitvViewModel = viewModel()) {
             globalParentalPinError = false
         }
     }
-    LaunchedEffect(vm.deviceAccess?.allowed, vm.playlists, vm.catalogReady, vm.catalogLoading, vm.catalogError, vm.catalogProgress.percent, vm.catalogProgress.itemsRead) {
-        val hasCompleteCatalog = vm.catalog.hasCoreContent
-        if (vm.accessLoading || vm.playlistsLoading || vm.catalogLoading) {
-            // Nunca libera a Home enquanto canais, filmes ou séries ainda estão sendo carregados.
-            showDeviceSetup = true
-        } else if ((vm.deviceAccess?.allowed == true || ProductConfig.api.useDemoData) && vm.catalogReady && hasCompleteCatalog && vm.catalogError == null) {
-            showDeviceSetup = false
-            vm.backHome()
-        }
+    val catalogCanOpen = (vm.deviceAccess?.allowed == true || ProductConfig.api.useDemoData) &&
+        vm.catalogReady &&
+        !vm.catalogLoading &&
+        vm.catalog.hasCoreContent &&
+        vm.catalogError == null
+    LaunchedEffect(catalogCanOpen) {
+        if (catalogCanOpen) vm.backHome()
     }
 
     Surface(modifier = Modifier.fillMaxSize(), color = WineDark) {
         when {
             showIntro -> PrestigieIntro()
-            showDeviceSetup -> DeviceIdentityScreen(vm) {
-                showDeviceSetup = false
-                vm.backHome()
-            }
+            !catalogCanOpen -> DeviceIdentityScreen(vm) { }
             else -> PrestigieShell(vm)
         }
     }
