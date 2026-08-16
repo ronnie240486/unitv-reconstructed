@@ -133,6 +133,7 @@ fun UnitvApp(vm: UnitvViewModel = viewModel()) {
         showIntro = false
     }
     LaunchedEffect(context) {
+        vm.attachContext(context)
         vm.updateDeviceId(DeviceIdentity.read12(context))
     }
     LaunchedEffect(vm.deviceAccess?.allowed, vm.playlists, vm.catalogReady, vm.catalogLoading, vm.catalogError) {

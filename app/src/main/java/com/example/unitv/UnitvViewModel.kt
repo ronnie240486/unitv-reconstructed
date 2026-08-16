@@ -1,5 +1,6 @@
 package com.example.unitv
 
+import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -30,6 +31,7 @@ class UnitvViewModel(
     private var catalogJob: Job? = null
     private var episodesJob: Job? = null
     private val seenNotificationIds = mutableSetOf<Long>()
+    private var appContext: Context? = null
 
     var currentScreen by mutableStateOf(AppScreen.HOME)
         private set
@@ -105,6 +107,10 @@ class UnitvViewModel(
 
     val macAddress: String
         get() = DeviceIdentity.toMac(deviceId)
+
+    fun attachContext(context: Context) {
+        appContext = context.applicationContext
+    }
 
     fun updateDeviceId(raw: String) {
         val normalized = DeviceIdentity.normalize12(raw)
@@ -260,6 +266,14 @@ class UnitvViewModel(
         catalogLoading = true
         catalogError = null
         catalogProgress = CatalogLoadProgress()
+        val cached = appContext?.let { CatalogCache.load(it, playlist.id) }
+        if (cached != null && cached.total > 0) {
+            catalog = cached
+            catalogReady = true
+            catalogLoading = false
+            catalogError = null
+            catalogProgress = CatalogLoadProgress(100, 0, 0, estimated = false)
+        }
         try {
             val loaded = catalogClient.load(playlist) { progress ->
                 catalogProgress = progress
@@ -267,11 +281,14 @@ class UnitvViewModel(
             if (loaded.total > 0) {
                 catalog = loaded
                 catalogError = null
-            } else {
+                catalogReady = true
+                catalogLoading = false
+                appContext?.let { context -> CatalogCache.save(context, playlist.id, loaded) }
+            } else if (cached == null) {
                 catalogError = "A lista respondeu sem canais, filmes ou séries."
             }
         } catch (_: Exception) {
-            catalogError = "Não foi possível carregar o conteúdo da lista."
+            if (cached == null) catalogError = "Não foi possível carregar o conteúdo da lista."
         } finally {
             catalogReady = catalog.total > 0 && catalogError == null
             catalogLoading = false

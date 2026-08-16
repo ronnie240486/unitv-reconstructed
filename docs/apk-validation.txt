@@ -1,4 +1,4 @@
-package: name='com.example.prestigie.reconstructed' versionCode='13' versionName='0.3.8-progress-throttle' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
+package: name='com.example.prestigie.reconstructed' versionCode='14' versionName='0.3.9-local-cache' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
 application-label:'Prestigie'
 application-icon-120:'res/drawable/prestigie_icon.png'
 application-icon-160:'res/drawable/prestigie_icon.png'
@@ -7,9 +7,10 @@ application-icon-320:'res/drawable/prestigie_icon.png'
 application-icon-480:'res/drawable/prestigie_icon.png'
 application-icon-640:'res/drawable/prestigie_icon.png'
 application-icon-65534:'res/drawable/prestigie_icon.png'
-fe16aac2bb809cad61ee2e84c5eb3b02274a1200e8e4f582455a695c9162aa87  app/build/outputs/apk/debug/app-debug.apk
+44d0c3876bcffa1bc295e074255e98207df73bb15c09ce74bf06d69f9d1900f1  app/build/outputs/apk/debug/app-debug.apk
 Build: SUCCESS
 Testes: testDebugUnitTest concluído
-Progresso: callbacks limitados a uma atualização por 350 ms
-Finalização: 100% somente após o catálogo ser montado
-Versão: 0.3.8-progress-throttle / versionCode 13
+Cache: catálogo salvo em JSONL no armazenamento privado do app
+Inicialização: catálogo salvo restaurado antes da atualização
+Atualização: nova sincronização ocorre em segundo plano
+Versão: 0.3.9-local-cache / versionCode 14

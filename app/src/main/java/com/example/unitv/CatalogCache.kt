@@ -1,0 +1,116 @@
+package com.example.unitv
+
+import android.content.Context
+import org.json.JSONObject
+import java.io.File
+
+/** Cache local em JSONL: uma entrada por linha para não duplicar o catálogo em uma String gigante. */
+object CatalogCache {
+    fun load(context: Context, playlistId: String): CatalogSnapshot? {
+        val file = cacheFile(context, playlistId)
+        if (!file.exists() || file.length() == 0L) return null
+        val live = mutableListOf<CatalogItem>()
+        val movies = mutableListOf<CatalogItem>()
+        val series = mutableListOf<CatalogItem>()
+        val episodes = LinkedHashMap<String, MutableList<SeriesEpisode>>()
+        return runCatching {
+            file.bufferedReader(Charsets.UTF_8).useLines { lines ->
+                lines.forEach { line ->
+                    if (line.isBlank()) return@forEach
+                    val json = JSONObject(line)
+                    when (json.optString("record")) {
+                        "item" -> {
+                            val item = itemFromJson(json)
+                            when (item.kind) {
+                                CatalogKind.LIVE -> live += item
+                                CatalogKind.MOVIE -> movies += item
+                                CatalogKind.SERIES -> series += item
+                            }
+                        }
+                        "episode" -> {
+                            val seriesId = json.optString("seriesId")
+                            if (seriesId.isBlank()) return@forEach
+                            episodes.getOrPut(seriesId) { mutableListOf() } += SeriesEpisode(
+                                id = json.optString("id"),
+                                title = json.optString("title"),
+                                season = json.optInt("season"),
+                                episode = json.optInt("episode"),
+                                imageUrl = json.optString("imageUrl"),
+                                streamUrl = json.optString("streamUrl")
+                            )
+                        }
+                    }
+                }
+            }
+            CatalogSnapshot(
+                live = live,
+                movies = movies,
+                series = series,
+                seriesEpisodes = episodes.mapValues { it.value.toList() }
+            ).takeIf { it.total > 0 }
+        }.getOrNull()
+    }
+
+    fun save(context: Context, playlistId: String, snapshot: CatalogSnapshot) {
+        val file = cacheFile(context, playlistId)
+        val temporary = File(file.parentFile, "${file.name}.tmp")
+        runCatching {
+            temporary.bufferedWriter(Charsets.UTF_8).use { writer ->
+                fun writeItem(item: CatalogItem) {
+                    val json = JSONObject()
+                        .put("record", "item")
+                        .put("id", item.id)
+                        .put("title", item.title)
+                        .put("category", item.category)
+                        .put("kind", item.kind.name)
+                        .put("imageUrl", item.imageUrl)
+                        .put("streamUrl", item.streamUrl)
+                        .put("year", item.year ?: JSONObject.NULL)
+                        .put("rating", item.rating ?: JSONObject.NULL)
+                        .put("description", item.description)
+                    writer.appendLine(json.toString())
+                }
+                snapshot.live.forEach(::writeItem)
+                snapshot.movies.forEach(::writeItem)
+                snapshot.series.forEach(::writeItem)
+                snapshot.seriesEpisodes.forEach { (seriesId, list) ->
+                    list.forEach { episode ->
+                        writer.appendLine(
+                            JSONObject()
+                                .put("record", "episode")
+                                .put("seriesId", seriesId)
+                                .put("id", episode.id)
+                                .put("title", episode.title)
+                                .put("season", episode.season)
+                                .put("episode", episode.episode)
+                                .put("imageUrl", episode.imageUrl)
+                                .put("streamUrl", episode.streamUrl)
+                                .toString()
+                        )
+                    }
+                }
+            }
+            if (!temporary.renameTo(file)) {
+                temporary.copyTo(file, overwrite = true)
+                temporary.delete()
+            }
+        }
+    }
+
+    private fun itemFromJson(json: JSONObject): CatalogItem = CatalogItem(
+        id = json.optString("id"),
+        title = json.optString("title"),
+        category = json.optString("category"),
+        kind = runCatching { CatalogKind.valueOf(json.optString("kind")) }.getOrDefault(CatalogKind.LIVE),
+        imageUrl = json.optString("imageUrl"),
+        streamUrl = json.optString("streamUrl"),
+        year = json.optInt("year").takeIf { !json.isNull("year") },
+        rating = json.optDouble("rating").takeIf { !json.isNull("rating") },
+        description = json.optString("description")
+    )
+
+    private fun cacheFile(context: Context, playlistId: String): File {
+        val safe = playlistId.replace(Regex("[^A-Za-z0-9_-]"), "_").ifBlank { "default" }
+        return File(context.filesDir, "prestigie_catalog_$safe.jsonl")
+    }
+}
