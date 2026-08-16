@@ -5,7 +5,7 @@ object ProductConfig {
     val api: ApiConfig = ApiConfig(
         baseUrl = "https://renciaapp.manus.space",
         updateUrl = "",
-        appVersion = "0.3.2-loadstate",
+        appVersion = "0.3.3-strict-categories",
         deviceType = "prestigie",
         useDemoData = false
     )

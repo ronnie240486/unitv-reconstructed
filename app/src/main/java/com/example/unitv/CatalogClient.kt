@@ -146,12 +146,12 @@ class CatalogClient {
             }
             if (line.startsWith("#")) continue
             if (metadata.isBlank()) continue
-            val lower = "$group $metadata $mediaType $line".lowercase()
-            val kind = when {
-                mediaType.contains("series", true) || mediaType.contains("serie", true) || line.contains("/series/", true) || listOf("series", "série", "temporada", "season").any { lower.contains(it) } -> CatalogKind.SERIES
-                mediaType.contains("movie", true) || mediaType.contains("filme", true) || line.contains("/movie/", true) || listOf("filme", "filmes", "movie", "vod", "cinema").any { lower.contains(it) } -> CatalogKind.MOVIE
-                else -> CatalogKind.LIVE
-            }
+            val kind = M3uClassifier.classify(
+                group = group,
+                title = metadata,
+                mediaType = mediaType,
+                streamUrl = line
+            )
             val item = CatalogItem("m3u-$index", metadata, group, kind, image, line)
             when (kind) {
                 CatalogKind.LIVE -> if (live.size < MAX_LIVE_ITEMS) live += item
