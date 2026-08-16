@@ -189,6 +189,7 @@ private fun PrestigieIntro() {
 @Composable
 private fun DeviceIdentityScreen(vm: UnitvViewModel, onContinue: () -> Unit) {
     val context = LocalContext.current
+    var copied by remember { mutableStateOf(false) }
     Box(modifier = Modifier.fillMaxSize()) {
         Image(
             painter = painterResource(R.drawable.prestigie_catalog_style),
@@ -213,15 +214,14 @@ private fun DeviceIdentityScreen(vm: UnitvViewModel, onContinue: () -> Unit) {
             Card(colors = CardDefaults.cardColors(containerColor = WinePanel), shape = RoundedCornerShape(16.dp)) {
                 Column(Modifier.padding(26.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("MAC / ID DO APARELHO", color = PrestigieGold, fontSize = 12.sp, letterSpacing = 2.sp)
-                    Text(vm.deviceId, color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
-                    Text(vm.macAddress, color = TextMuted, fontSize = 13.sp, letterSpacing = 1.4.sp)
+                    Text(vm.macAddress, color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.8.sp)
                     Column(modifier = Modifier.fillMaxWidth(0.86f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Button(
                             modifier = Modifier.fillMaxWidth(),
                             onClick = {
                                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                 clipboard.setPrimaryClip(ClipData.newPlainText("MAC do aparelho", vm.macAddress))
-                                vm.showNotice("MAC copiado no formato AA:BB:CC:DD:EE:FF. Cole o valor no backend para vincular as listas.")
+                                copied = true
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = PrestigieGold, contentColor = WineDark)
                         ) {
@@ -232,7 +232,9 @@ private fun DeviceIdentityScreen(vm: UnitvViewModel, onContinue: () -> Unit) {
                     }
                 }
             }
-            Text("A tela exibe 12 caracteres; o botão Copiar usa o formato MAC do backend.", color = TextMuted, fontSize = 12.sp)
+            if (copied) {
+                Text("MAC copiado", color = Color(0xFF78E39A), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            }
             when {
                 vm.accessLoading -> Text("Validando aparelho no servidor…", color = TextMuted)
                 vm.deviceAccess?.allowed == true && vm.catalogLoading -> Text("Importando canais, filmes, séries e categorias da M3U…", color = PrestigieGold)
@@ -241,14 +243,8 @@ private fun DeviceIdentityScreen(vm: UnitvViewModel, onContinue: () -> Unit) {
                 vm.deviceAccess != null -> Text("Acesso indisponível para este aparelho.", color = Color(0xFFFFB4AB))
                 vm.playlistsError != null -> Text(vm.playlistsError.orEmpty(), color = Color(0xFFFFB4AB))
             }
-            Button(
-                onClick = onContinue,
-                enabled = ProductConfig.api.useDemoData || (vm.deviceAccess?.allowed == true && vm.catalogReady && vm.catalogError == null),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xCC8C5215), contentColor = Color.White)
-            ) {
-                Text("Continuar")
-                Spacer(Modifier.width(8.dp))
-                Icon(Icons.Default.ArrowForward, contentDescription = null, modifier = Modifier.size(18.dp))
+            if (vm.catalogError != null) {
+                Text("O aplicativo continuará tentando automaticamente…", color = TextMuted, fontSize = 12.sp)
             }
         }
     }

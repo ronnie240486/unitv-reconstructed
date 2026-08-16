@@ -126,10 +126,12 @@ class CatalogClient {
         val live = mutableListOf<CatalogItem>()
         val movies = mutableListOf<CatalogItem>()
         val series = mutableListOf<CatalogItem>()
+        val seriesEpisodes = LinkedHashMap<String, MutableList<SeriesEpisode>>()
         var metadata = ""
         var image = ""
         var group = ""
         var mediaType = ""
+        var externalSeriesId = ""
         var index = 0
         var total = 0
         val buffered = reader.buffered()
@@ -142,6 +144,7 @@ class CatalogClient {
                 image = attribute(line, "tvg-logo")
                 group = attribute(line, "group-title").ifBlank { "Catálogo" }
                 mediaType = attribute(line, "tvg-type")
+                externalSeriesId = firstAttribute(line, "series-id", "series_id")
                 continue
             }
             if (line.startsWith("#")) continue
@@ -152,11 +155,29 @@ class CatalogClient {
                 mediaType = mediaType,
                 streamUrl = line
             )
-            val item = CatalogItem("m3u-$index", metadata, group, kind, image, line)
             when (kind) {
-                CatalogKind.LIVE -> if (live.size < MAX_LIVE_ITEMS) live += item
-                CatalogKind.MOVIE -> if (movies.size < MAX_VOD_ITEMS) movies += item
-                CatalogKind.SERIES -> if (series.size < MAX_VOD_ITEMS) series += item
+                CatalogKind.LIVE -> if (live.size < MAX_LIVE_ITEMS) {
+                    live += CatalogItem("m3u-$index", metadata, group, kind, image, line)
+                }
+                CatalogKind.MOVIE -> if (movies.size < MAX_VOD_ITEMS) {
+                    movies += CatalogItem("m3u-$index", metadata, group, kind, image, line)
+                }
+                CatalogKind.SERIES -> if (series.size < MAX_VOD_ITEMS) {
+                    val identity = externalSeriesId.ifBlank { seriesIdentity(metadata, group) }
+                    val seriesId = "m3u-series-${identity.hashCode()}"
+                    if (series.none { it.id == seriesId }) {
+                        series += CatalogItem(
+                            id = seriesId,
+                            title = seriesTitle(metadata),
+                            category = group,
+                            kind = CatalogKind.SERIES,
+                            imageUrl = image,
+                            streamUrl = ""
+                        )
+                    }
+                    val episode = episodeFromM3u("m3u-episode-$index", metadata, image, line)
+                    seriesEpisodes.getOrPut(seriesId) { mutableListOf() } += episode
+                }
             }
             total++
             index++
@@ -164,8 +185,14 @@ class CatalogClient {
             image = ""
             group = ""
             mediaType = ""
+            externalSeriesId = ""
         }
-        return CatalogSnapshot(live, movies, series)
+        return CatalogSnapshot(
+            live = live,
+            movies = movies,
+            series = series,
+            seriesEpisodes = seriesEpisodes.mapValues { it.value.toList() }
+        )
     }
 
     private fun categoryMap(endpoint: String, playlist: Playlist, action: String): Map<String, String> {
@@ -364,7 +391,45 @@ class CatalogClient {
         return line.substring(from).substringBefore('"')
     }
 
+    private fun firstAttribute(line: String, vararg names: String): String =
+        names.asSequence().map { attribute(line, it) }.firstOrNull { it.isNotBlank() }.orEmpty()
+
+    private fun seriesIdentity(title: String, group: String): String {
+        val cleaned = title
+            .replace(SEASON_EPISODE_PATTERN, "")
+            .replace(YEAR_PATTERN, "")
+            .replace(BRACKET_PATTERN, "")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+        return (cleaned.ifBlank { group }).lowercase()
+    }
+
+    private fun seriesTitle(title: String): String {
+        val cleaned = title
+            .replace(SEASON_EPISODE_PATTERN, "")
+            .replace(YEAR_PATTERN, "")
+            .replace(BRACKET_PATTERN, "")
+            .replace(Regex("\\s+"), " ")
+            .trim(' ', '-', '|', '·')
+        return cleaned.ifBlank { "Série" }
+    }
+
+    private fun episodeFromM3u(id: String, title: String, image: String, streamUrl: String): SeriesEpisode {
+        val match = SEASON_EPISODE_PATTERN.find(title)
+        return SeriesEpisode(
+            id = id,
+            title = title,
+            season = match?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 1,
+            episode = match?.groupValues?.getOrNull(2)?.toIntOrNull() ?: 1,
+            imageUrl = image,
+            streamUrl = streamUrl
+        )
+    }
+
     private companion object {
+        val SEASON_EPISODE_PATTERN = Regex("(?i)\\bS(\\d{1,2})\\s*E(\\d{1,3})\\b")
+        val YEAR_PATTERN = Regex("\\(?\\b(?:19|20)\\d{2}\\b\\)?")
+        val BRACKET_PATTERN = Regex("\\[[^]]*]|\\([^)]*\\)")
         const val MAX_CATEGORY_ITEMS = 500_000
         const val MAX_LIVE_ITEMS = 100_000
         const val MAX_VOD_ITEMS = 500_000

@@ -1,4 +1,4 @@
-package: name='com.example.prestigie.reconstructed' versionCode='8' versionName='0.3.3-strict-categories' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
+package: name='com.example.prestigie.reconstructed' versionCode='9' versionName='0.3.4-series-autosync' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'
 application-label:'Prestigie'
 application-icon-120:'res/drawable/prestigie_icon.png'
 application-icon-160:'res/drawable/prestigie_icon.png'
@@ -7,9 +7,11 @@ application-icon-320:'res/drawable/prestigie_icon.png'
 application-icon-480:'res/drawable/prestigie_icon.png'
 application-icon-640:'res/drawable/prestigie_icon.png'
 application-icon-65534:'res/drawable/prestigie_icon.png'
-cc41a222395ab806a52066d6bdf80c21caf708f91108d87063a119325bfaa254  app/build/outputs/apk/debug/app-debug.apk
+e72bd84b4ac24fdf70e359f35fbf6da5b951f9ab8a34f79646cb10c2e7518872  app/build/outputs/apk/debug/app-debug.apk
 Build: SUCCESS
 Testes: testDebugUnitTest concluído
-Classificação: URL > tvg-type > group-title > tags explícitas
-Separação: Canais, Filmes e Séries sem cruzamento
-Versão: 0.3.3-strict-categories / versionCode 8
+Séries M3U: episódios agrupados por série e carregados localmente
+IDs M3U: hashes internos não são enviados à API Xtream
+Polling: retries automáticos a cada 5s até catálogo válido; 60s após sucesso
+MAC: somente formato AA:BB:CC:DD:EE:FF, cópia sem modal
+Versão: 0.3.4-series-autosync / versionCode 9

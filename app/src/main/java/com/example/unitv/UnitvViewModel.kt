@@ -10,6 +10,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 class UnitvViewModel(
     private val repository: ContentRepository = DemoContentRepository(),
@@ -23,6 +25,7 @@ class UnitvViewModel(
 
     private val backend = if (apiConfig.useDemoData) null else RenciaBackend(apiConfig)
     private val catalogClient = CatalogClient()
+    private val syncMutex = Mutex()
     private var heartbeatJob: Job? = null
     private var catalogJob: Job? = null
     private var episodesJob: Job? = null
@@ -105,8 +108,7 @@ class UnitvViewModel(
         val normalized = DeviceIdentity.normalize12(raw)
         if (deviceId == normalized) return
         deviceId = normalized
-        refreshBackend()
-        startHeartbeat()
+        if (backend == null) refreshBackend() else startHeartbeat()
     }
 
     fun refreshPlaylists() {
@@ -115,7 +117,11 @@ class UnitvViewModel(
 
     fun refreshBackend() {
         if (deviceId.isBlank()) return
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO) { refreshBackendOnce() }
+    }
+
+    private suspend fun refreshBackendOnce() {
+        syncMutex.withLock {
             accessLoading = true
             playlistsLoading = true
             playlistsError = null
@@ -128,32 +134,41 @@ class UnitvViewModel(
                         movies = vodItems.map { CatalogItem(it.id, it.title, it.category, CatalogKind.MOVIE) },
                         series = vodItems.map { CatalogItem(it.id, it.title, "Séries", CatalogKind.SERIES) }
                     )
+                    catalogError = null
                     catalogReady = true
                 } else {
                     val access = backend.checkDevice(macAddress)
                     deviceAccess = access
                     if (!access.allowed) {
-                        playlists = emptyList()
-                        selectedPlaylistId = null
-                        catalog = CatalogSnapshot()
-                        catalogReady = false
-                        playlistsError = "Acesso indisponível para este aparelho."
-                        notice = "Este aparelho não está liberado para reproduzir conteúdo."
-                    } else {
-                        visualConfig = runCatching { backend.fetchVisualConfig(macAddress) }.getOrDefault(VisualConfig())
-                        val sources = backend.fetchSources(macAddress)
-                        playlists = sources.mapIndexed { index, playlist ->
-                            playlist.copy(directM3uUrl = if (index == 0) access.urlM3u8 else playlist.directM3uUrl)
+                        if (catalog.total == 0) {
+                            playlists = emptyList()
+                            selectedPlaylistId = null
+                            catalogReady = false
                         }
-                        selectFirstPlaylistIfNeeded()
-                        catalogReady = false
-                        loadSelectedCatalog()
-                        backend.heartbeat(macAddress)
+                        playlistsError = "Acesso indisponível para este aparelho."
+                    } else {
+                        val service = backend ?: return@withLock
+                        visualConfig = runCatching { service.fetchVisualConfig(macAddress) }.getOrDefault(visualConfig)
+                        val sources = service.fetchSources(macAddress)
+                        if (sources.isNotEmpty()) {
+                            playlists = sources.mapIndexed { index, playlist ->
+                                playlist.copy(directM3uUrl = if (index == 0 && access.urlM3u8.isNotBlank()) access.urlM3u8 else playlist.directM3uUrl)
+                            }
+                            selectFirstPlaylistIfNeeded()
+                            loadSelectedCatalogNow()
+                        } else if (catalog.total == 0) {
+                            playlistsError = "Aparelho liberado, aguardando listas do painel…"
+                            catalogReady = false
+                        }
+                        service.heartbeat(macAddress)
                         syncNotificationsAndCommands()
                     }
                 }
             } catch (_: Exception) {
-                playlistsError = "Não foi possível validar o aparelho agora. Tente novamente."
+                if (catalog.total == 0) {
+                    catalogReady = false
+                    playlistsError = "Aguardando resposta do painel e da lista…"
+                }
             } finally {
                 playlistsLoading = false
                 accessLoading = false
@@ -173,11 +188,9 @@ class UnitvViewModel(
         if (backend == null) return
         heartbeatJob = viewModelScope.launch(Dispatchers.IO) {
             while (isActive) {
-                runCatching {
-                    backend.heartbeat(macAddress)
-                    syncNotificationsAndCommands()
-                }
-                delay(60_000)
+                refreshBackendOnce()
+                val ready = catalogReady && catalog.total > 0 && catalogError == null
+                delay(if (ready) 60_000 else 5_000)
             }
         }
     }
@@ -229,22 +242,30 @@ class UnitvViewModel(
     }
 
     private fun loadSelectedCatalog() {
-        val playlist = selectedPlaylist ?: return
         catalogJob?.cancel()
+        catalogJob = viewModelScope.launch(Dispatchers.IO) {
+            loadSelectedCatalogNow()
+        }
+    }
+
+    private suspend fun loadSelectedCatalogNow() {
+        val playlist = selectedPlaylist ?: return
         catalogReady = false
         catalogLoading = true
         catalogError = null
-        catalogJob = viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val loaded = catalogClient.load(playlist)
+        try {
+            val loaded = catalogClient.load(playlist)
+            if (loaded.total > 0) {
                 catalog = loaded
-                if (loaded.total == 0) catalogError = "A lista respondeu sem canais, filmes ou séries."
-            } catch (_: Exception) {
-                catalogError = "Não foi possível carregar o conteúdo da lista."
-            } finally {
-                catalogReady = true
-                catalogLoading = false
+                catalogError = null
+            } else {
+                catalogError = "A lista respondeu sem canais, filmes ou séries."
             }
+        } catch (_: Exception) {
+            catalogError = "Não foi possível carregar o conteúdo da lista."
+        } finally {
+            catalogReady = catalog.total > 0 && catalogError == null
+            catalogLoading = false
         }
     }
 
@@ -276,15 +297,23 @@ class UnitvViewModel(
 
     fun openCatalogItem(item: CatalogItem) {
         selectedCatalogItem = item
-        when {
-            item.kind == CatalogKind.SERIES && selectedPlaylist?.username?.isNotBlank() == true -> {
-                seriesEpisodes = emptyList()
-                episodesError = null
-                currentScreen = AppScreen.SERIES_EPISODES
+        if (item.kind == CatalogKind.SERIES) {
+            val localEpisodes = catalog.seriesEpisodes[item.id].orEmpty()
+            seriesEpisodes = localEpisodes
+            episodesError = null
+            currentScreen = AppScreen.SERIES_EPISODES
+            if (localEpisodes.isNotEmpty()) return
+            if (!item.id.startsWith("m3u-series-") && selectedPlaylist?.username?.isNotBlank() == true && item.id.isNotBlank()) {
                 loadSeriesEpisodes(item)
+            } else {
+                episodesError = "Esta série não possui episódios disponíveis na fonte M3U."
             }
-            item.streamUrl.isNotBlank() -> openPlayer(item.title, item.streamUrl)
-            else -> showNotice("Este conteúdo não possui uma URL de reprodução válida na lista.")
+            return
+        }
+        if (item.streamUrl.isNotBlank()) {
+            openPlayer(item.title, item.streamUrl)
+        } else {
+            showNotice("Este conteúdo não possui uma URL de reprodução válida na lista.")
         }
     }
 
@@ -295,8 +324,9 @@ class UnitvViewModel(
             episodesLoading = true
             episodesError = null
             try {
-                seriesEpisodes = catalogClient.fetchSeriesEpisodes(playlist, item.id)
-                if (seriesEpisodes.isEmpty()) episodesError = "Nenhum episódio foi retornado para esta série."
+                val loaded = catalogClient.fetchSeriesEpisodes(playlist, item.id)
+                seriesEpisodes = loaded
+                if (loaded.isEmpty()) episodesError = "Nenhum episódio foi retornado para esta série."
             } catch (_: Exception) {
                 episodesError = "Não foi possível carregar os episódios desta série."
             } finally {
@@ -320,7 +350,11 @@ class UnitvViewModel(
     }
 
     fun closePlayer() {
-        currentScreen = if (selectedCatalogItem?.kind == CatalogKind.SERIES) AppScreen.SERIES_EPISODES else AppScreen.HOME
+        currentScreen = when {
+            selectedCatalogItem?.kind == CatalogKind.SERIES -> AppScreen.SERIES_EPISODES
+            selectedSection == AppSection.LIVE -> AppScreen.LIVE
+            else -> AppScreen.HOME
+        }
     }
 
     fun selectCategory(category: String) {

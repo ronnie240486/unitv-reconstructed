@@ -30,7 +30,8 @@ data class SeriesEpisode(
 data class CatalogSnapshot(
     val live: List<CatalogItem> = emptyList(),
     val movies: List<CatalogItem> = emptyList(),
-    val series: List<CatalogItem> = emptyList()
+    val series: List<CatalogItem> = emptyList(),
+    val seriesEpisodes: Map<String, List<SeriesEpisode>> = emptyMap()
 ) {
     val total: Int
         get() = live.size + movies.size + series.size
