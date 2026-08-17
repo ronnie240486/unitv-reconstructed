@@ -108,6 +108,19 @@ data class BackendNotification(
     val status: String
 )
 
+enum class NotificationSource {
+    PANEL,
+    CATALOG
+}
+
+data class AppNotification(
+    val id: String,
+    val title: String,
+    val message: String,
+    val source: NotificationSource,
+    val createdAt: Long = System.currentTimeMillis()
+)
+
 data class RemoteCommand(
     val id: Long,
     val command: String,

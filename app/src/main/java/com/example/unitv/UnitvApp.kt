@@ -375,7 +375,6 @@ private fun TopBar(vm: UnitvViewModel) {
         HeaderAction(Icons.Default.FilterList, "Filtros", vm::openFilters),
         HeaderAction(Icons.Default.History, "Histórico", vm::openHistory),
         HeaderAction(Icons.Default.List, "Listas", vm::openLists),
-        HeaderAction(Icons.Default.HelpOutline, "Ajuda", vm::openHelp),
         HeaderAction(Icons.Default.Notifications, "Notificações", vm::openNotifications)
     )
     BoxWithConstraints(modifier = Modifier.fillMaxWidth().background(Color(0xAA26070D))) {
@@ -439,7 +438,7 @@ private fun HeaderIconButton(icon: ImageVector, label: String, onClick: () -> Un
 
 @Composable
 private fun CategoryTabs(vm: UnitvViewModel) {
-    val tabs = listOf("Home", "Destaques", "Canais", "Filmes", "Séries", "Kids", "Anime", "Explorar")
+    val tabs = listOf("Home", "Destaques", "Canais", "Filmes", "Séries", "Kids", "Explorar")
     LazyRow(
         modifier = Modifier.fillMaxWidth().height(68.dp).background(Color(0xB516060A)),
         contentPadding = PaddingValues(horizontal = 18.dp),
@@ -475,10 +474,10 @@ private fun ScreenContent(vm: UnitvViewModel) {
         AppScreen.ANIME -> CatalogScreen(vm, "Anime", vm.catalog.anime)
         AppScreen.ADULT -> AdultCatalogScreen(vm)
         AppScreen.EXPLORE -> CatalogScreen(vm, "Explorar", vm.allCatalog)
-        AppScreen.NOTIFICATIONS -> InfoListScreen("Notificações", "Avisos, novidades e recomendações", Icons.Default.Notifications, vm::backHome, listOf("Novidades do catálogo", "Seu conteúdo foi atualizado", "Confira os destaques da semana"))
+        AppScreen.NOTIFICATIONS -> NotificationScreen(vm)
         AppScreen.HISTORY -> InfoListScreen("Histórico", "Continue de onde parou", Icons.Default.History, vm::backHome, listOf("Conteúdos recentes", "Seu histórico será preenchido pelo player"))
         AppScreen.FILTERS -> FilterScreen(vm)
-        AppScreen.HELP -> InfoListScreen("Central de ajuda", "Orientações para usar o Prestigie na TV", Icons.Default.HelpOutline, vm::backHome, listOf("Como navegar pelo controle remoto", "Como alterar legendas e áudio", "Como acessar o controle parental"))
+        AppScreen.HELP -> HomeScreen(vm)
         AppScreen.VOD_DETAILS -> VodDetailsScreen(vm)
         AppScreen.SEARCH -> SearchScreen(vm)
         AppScreen.LOGIN -> LoginScreen(vm)
@@ -548,7 +547,7 @@ private fun HomeScreen(vm: UnitvViewModel) {
             }
         }
         item {
-            Text("Acesse pelo menu superior: Destaques, Filmes, Séries, Kids e Anime.", color = TextMuted, fontSize = 13.sp)
+            Text("Acesse pelo menu superior: Destaques, Filmes, Séries e Kids.", color = TextMuted, fontSize = 13.sp)
         }
     }
 }
@@ -944,10 +943,30 @@ private fun InfoListScreen(title: String, subtitle: String, icon: ImageVector, b
 }
 
 @Composable
+private fun NotificationScreen(vm: UnitvViewModel) {
+    ScreenFrame("Notificações", "Avisos do painel e novidades da sua lista", vm::backHome) {
+        if (vm.appNotifications.isEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Default.Notifications, contentDescription = null, tint = PrestigieGold, modifier = Modifier.size(34.dp))
+                Text("Nenhuma notificação nova.", color = Color.White, style = MaterialTheme.typography.titleMedium)
+                Text("Quando o painel enviar um aviso ou a lista receber conteúdos novos, eles aparecerão aqui.", color = TextMuted)
+            }
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                items(vm.appNotifications) { item ->
+                    val sourceLabel = if (item.source == NotificationSource.PANEL) "Painel" else "Nova lista"
+                    FocusRow(item.title, "$sourceLabel · ${item.message}", Icons.Default.Notifications) { }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun FilterScreen(vm: UnitvViewModel) {
     ScreenFrame("Filtros", "Refine sua busca", vm::backHome) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            listOf("Canais", "Filmes", "Séries", "Kids", "Anime", "Esportes").forEach { label ->
+            listOf("Canais", "Filmes", "Séries", "Kids", "Esportes").forEach { label ->
                 FocusRow(label, "Selecionar categoria", Icons.Default.FilterList) { vm.selectCategory(label) }
             }
         }

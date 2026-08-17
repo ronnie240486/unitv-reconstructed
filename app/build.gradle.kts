@@ -12,8 +12,8 @@ android {
         applicationId = "com.example.prestigie.reconstructed"
         minSdk = 26
         targetSdk = 35
-        versionCode = 28
-        versionName = "0.4.7-cache-once"
+        versionCode = 29
+        versionName = "0.4.8-notifications"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

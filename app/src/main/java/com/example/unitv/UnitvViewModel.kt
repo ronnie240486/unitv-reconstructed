@@ -13,6 +13,9 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.File
 
 class UnitvViewModel(
     private val repository: ContentRepository = DemoContentRepository(),
@@ -82,6 +85,11 @@ class UnitvViewModel(
         private set
     var backendNotifications by mutableStateOf<List<BackendNotification>>(emptyList())
         private set
+    var appNotifications by mutableStateOf<List<AppNotification>>(emptyList())
+        private set
+    private var notificationsLoaded = false
+    private var lastLoadedPlaylistId: String? = null
+    private val maxCatalogNotifications = 24
     var searchQuery by mutableStateOf("")
     var session by mutableStateOf(UserSession())
         private set
@@ -121,6 +129,10 @@ class UnitvViewModel(
 
     fun attachContext(context: Context) {
         appContext = context.applicationContext
+        if (!notificationsLoaded) {
+            appNotifications = loadPersistedNotifications(context.applicationContext)
+            notificationsLoaded = true
+        }
     }
 
     fun updateDeviceId(raw: String) {
@@ -237,7 +249,14 @@ class UnitvViewModel(
         backendNotifications = notifications
         notifications.filter { it.id !in seenNotificationIds }.forEach { notification ->
             seenNotificationIds += notification.id
-            notice = "${notification.title}: ${notification.message}"
+            val appNotification = AppNotification(
+                id = "panel-${notification.id}",
+                title = notification.title.ifBlank { "Aviso do painel" },
+                message = notification.message,
+                source = NotificationSource.PANEL
+            )
+            val wasNew = addAppNotification(appNotification)
+            if (wasNew) notice = "${appNotification.title}: ${appNotification.message}"
             runCatching { service.acknowledgeNotification(macAddress, notification.id) }
         }
 
@@ -257,7 +276,16 @@ class UnitvViewModel(
                 "Lista atualizada"
             }
             "show_message" -> {
-                if (command.payload.isNotBlank()) notice = command.payload
+                if (command.payload.isNotBlank()) {
+                    val appNotification = AppNotification(
+                        id = "command-${command.id}",
+                        title = "Aviso do painel",
+                        message = command.payload,
+                        source = NotificationSource.PANEL
+                    )
+                    addAppNotification(appNotification)
+                    notice = command.payload
+                }
                 "Mensagem exibida"
             }
             "restart_player" -> "Player reiniciado"
@@ -299,6 +327,7 @@ class UnitvViewModel(
         }
         if (cacheIsCurrent && cached != null) {
             catalog = cached
+            lastLoadedPlaylistId = playlist.id
             selectedCatalogItem?.takeIf { it.kind == CatalogKind.SERIES }?.let { openSeries ->
                 seriesEpisodes = cached.seriesEpisodes[openSeries.id].orEmpty()
                 episodesLoading = false
@@ -315,6 +344,11 @@ class UnitvViewModel(
         catalogError = null
         catalogProgress = CatalogLoadProgress(stage = "Carregando sua lista")
         startCatalogClock()
+        val previousCatalog = when {
+            cached?.hasCoreContent == true -> cached
+            lastLoadedPlaylistId == playlist.id && catalog.hasCoreContent -> catalog
+            else -> null
+        }
         try {
             val loaded = catalogClient.load(
                 playlist,
@@ -345,7 +379,23 @@ class UnitvViewModel(
                 }
             )
             if (loaded.hasCoreContent) {
+                val newItems = if (previousCatalog != null) newCatalogItems(previousCatalog, loaded) else emptyList()
                 catalog = loaded
+                lastLoadedPlaylistId = playlist.id
+                if (newItems.isNotEmpty()) {
+                    val added = newItems.take(maxCatalogNotifications)
+                    added.forEach { item ->
+                        addAppNotification(
+                            AppNotification(
+                                id = "catalog-${PlaylistSourceIdentity.fingerprint(item.kind.name + "|" + item.title + "|" + item.streamUrl)}",
+                                title = "Novo conteúdo em ${item.category.ifBlank { item.kind.name.lowercase() }}",
+                                message = item.title,
+                                source = NotificationSource.CATALOG
+                            )
+                        )
+                    }
+                    notice = "${newItems.size} novidade(s) adicionada(s) às Notificações."
+                }
                 selectedCatalogItem?.takeIf { it.kind == CatalogKind.SERIES }?.let { openSeries ->
                     seriesEpisodes = loaded.seriesEpisodes[openSeries.id].orEmpty()
                     episodesLoading = false
@@ -596,6 +646,72 @@ class UnitvViewModel(
         notice = "Sessão encerrada."
         currentScreen = AppScreen.HOME
         selectedSection = AppSection.HOME
+    }
+
+    private fun allCatalogItems(snapshot: CatalogSnapshot): List<CatalogItem> =
+        snapshot.live + snapshot.movies + snapshot.series + snapshot.kids + snapshot.anime + snapshot.adult
+
+    private fun catalogItemKey(item: CatalogItem): String =
+        PlaylistSourceIdentity.fingerprint(item.kind.name + "|" + item.title + "|" + item.streamUrl)
+
+    private fun newCatalogItems(previous: CatalogSnapshot, updated: CatalogSnapshot): List<CatalogItem> {
+        val known = allCatalogItems(previous).mapTo(mutableSetOf(), ::catalogItemKey)
+        return allCatalogItems(updated).filter { catalogItemKey(it) !in known }
+    }
+
+    private fun loadPersistedNotifications(context: Context): List<AppNotification> {
+        val file = File(context.filesDir, "prestigie_notifications.json")
+        if (!file.exists()) return emptyList()
+        return runCatching {
+            val array = JSONArray(file.readText(Charsets.UTF_8))
+            buildList {
+                for (index in 0 until array.length()) {
+                    val json = array.optJSONObject(index) ?: continue
+                    val source = runCatching { NotificationSource.valueOf(json.optString("source")) }
+                        .getOrDefault(NotificationSource.PANEL)
+                    add(
+                        AppNotification(
+                            id = json.optString("id"),
+                            title = json.optString("title"),
+                            message = json.optString("message"),
+                            source = source,
+                            createdAt = json.optLong("createdAt", System.currentTimeMillis())
+                        )
+                    )
+                }
+            }.filter { it.id.isNotBlank() && it.message.isNotBlank() }.take(100)
+        }.getOrDefault(emptyList())
+    }
+
+    private fun persistNotifications() {
+        val context = appContext ?: return
+        runCatching {
+            val array = JSONArray()
+            appNotifications.take(100).forEach { item ->
+                array.put(
+                    JSONObject()
+                        .put("id", item.id)
+                        .put("title", item.title)
+                        .put("message", item.message)
+                        .put("source", item.source.name)
+                        .put("createdAt", item.createdAt)
+                )
+            }
+            val target = File(context.filesDir, "prestigie_notifications.json")
+            val temporary = File(context.filesDir, "prestigie_notifications.json.tmp")
+            temporary.writeText(array.toString(), Charsets.UTF_8)
+            if (!temporary.renameTo(target)) {
+                temporary.copyTo(target, overwrite = true)
+                temporary.delete()
+            }
+        }
+    }
+
+    private fun addAppNotification(notification: AppNotification): Boolean {
+        if (notification.id.isBlank() || appNotifications.any { it.id == notification.id }) return false
+        appNotifications = (listOf(notification) + appNotifications).take(100)
+        persistNotifications()
+        return true
     }
 
     fun openNotifications() { currentScreen = AppScreen.NOTIFICATIONS }
