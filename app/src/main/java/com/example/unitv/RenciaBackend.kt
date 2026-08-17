@@ -29,26 +29,31 @@ class RenciaBackend(private val config: ApiConfig) {
     }
 
     suspend fun fetchSources(mac: String): List<Playlist> = withContext(Dispatchers.IO) {
-        val json = getJson("/api/guim.php", mapOf("mac" to mac))
-        val data = json.optJSONArray("data") ?: JSONArray()
-        buildList {
-            for (index in 0 until data.length()) {
-                val source = data.optJSONObject(index) ?: continue
-                val url = source.optString("url").trim()
-                if (url.isBlank()) continue
-                add(
-                    Playlist(
-                        id = source.optString("id", "list-$index"),
-                        name = source.optString("name").ifBlank { "Lista ${index + 1}" },
-                        url = url,
-                        username = source.optString("username"),
-                        password = source.optString("password"),
-                        type = source.optString("type"),
-                        number = index + 1
+        val paths = listOf("/api/guim.php", "/api/v5/guim.php", "/api/v4/guim.php")
+        for (path in paths) {
+            val json = runCatching { getJson(path, mapOf("mac" to mac)) }.getOrNull() ?: continue
+            val data = json.optJSONArray("data") ?: continue
+            val sources = buildList {
+                for (index in 0 until data.length()) {
+                    val source = data.optJSONObject(index) ?: continue
+                    val url = source.optString("url").ifBlank { source.optString("playlist_url") }.trim()
+                    if (url.isBlank()) continue
+                    add(
+                        Playlist(
+                            id = source.optString("id", "list-$index"),
+                            name = source.optString("name").ifBlank { source.optString("playlist_name") }.ifBlank { "Lista ${index + 1}" },
+                            url = url,
+                            username = source.optString("username"),
+                            password = source.optString("password"),
+                            type = source.optString("type"),
+                            number = index + 1
+                        )
                     )
-                )
-            }
-        }.take(4)
+                }
+            }.take(4)
+            if (sources.isNotEmpty()) return@withContext sources
+        }
+        emptyList()
     }
 
     suspend fun fetchVisualConfig(mac: String): VisualConfig = withContext(Dispatchers.IO) {
@@ -65,6 +70,7 @@ class RenciaBackend(private val config: ApiConfig) {
             liveIconUrl = icons.optString("live_tv"),
             moviesIconUrl = icons.optString("movies"),
             seriesIconUrl = icons.optString("series"),
+            serverApiUrl = json.optString("server_api_url"),
             updateUrl = json.optString("apk_download_url"),
             updateVersion = json.optString("apk_version")
         )
@@ -78,10 +84,10 @@ class RenciaBackend(private val config: ApiConfig) {
         getJson("/api/v5/heartbeat", query)
     }
 
-    suspend fun listNotifications(mac: String): List<BackendNotification> = withContext(Dispatchers.IO) {
+    suspend fun listNotifications(mac: String): BackendSyncSnapshot = withContext(Dispatchers.IO) {
         val json = getJson("/api/v5/list-notifications", mapOf("mac" to mac))
         val array = json.optJSONArray("notifications") ?: JSONArray()
-        buildList {
+        val notifications = buildList {
             for (index in 0 until array.length()) {
                 val item = array.optJSONObject(index) ?: continue
                 val message = item.optString("message").trim()
@@ -97,6 +103,23 @@ class RenciaBackend(private val config: ApiConfig) {
                 )
             }
         }
+        val expiration = json.optJSONObject("expiration")?.let { item ->
+            ExpirationNotice(
+                showModal = item.optBooleanFlexible("show_modal"),
+                modalKey = item.optString("modal_key"),
+                title = item.optString("modal_title"),
+                message = item.optString("modal_message"),
+                daysRemaining = item.optIntFlexible("days_remaining")
+            )
+        } ?: ExpirationNotice()
+        val failover = FailoverState(
+            active = json.optBooleanFlexible("failover_active"),
+            state = json.optString("failover_state"),
+            playlistSyncRequired = json.optBooleanFlexible("playlist_sync_required"),
+            playlistSyncMessage = json.optString("playlist_sync_message"),
+            transitionId = json.optString("failover_transition_id")
+        )
+        BackendSyncSnapshot(notifications, expiration, failover)
     }
 
     suspend fun remoteCommands(mac: String): List<RemoteCommand> = withContext(Dispatchers.IO) {
@@ -107,7 +130,7 @@ class RenciaBackend(private val config: ApiConfig) {
                 val item = array.optJSONObject(index) ?: continue
                 val command = item.optString("command").ifBlank { item.optString("type") }
                 if (command.isBlank()) continue
-                add(RemoteCommand(item.optLong("id"), command, item.optString("payload"), item.optString("expires_at")))
+                add(RemoteCommand(item.optLong("id"), command, item.optString("payload"), item.optString("expires_at").ifBlank { item.optString("expiresAt") }))
             }
         }
     }
@@ -182,6 +205,15 @@ class RenciaBackend(private val config: ApiConfig) {
             "${URLEncoder.encode(key, Charsets.UTF_8.name())}=${URLEncoder.encode(value, Charsets.UTF_8.name())}"
         }
         return if (encoded.isBlank()) "$baseUrl$path" else "$baseUrl$path?$encoded"
+    }
+}
+
+private fun JSONObject.optIntFlexible(key: String): Int? {
+    val value = opt(key)
+    return when (value) {
+        is Number -> value.toInt()
+        is String -> value.toIntOrNull()
+        else -> null
     }
 }
 

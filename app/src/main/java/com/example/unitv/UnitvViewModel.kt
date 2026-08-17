@@ -16,6 +16,7 @@ import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.time.Instant
 
 class UnitvViewModel(
     private val repository: ContentRepository = DemoContentRepository(),
@@ -35,6 +36,8 @@ class UnitvViewModel(
     private var episodesJob: Job? = null
     private var catalogClockJob: Job? = null
     private val seenNotificationIds = mutableSetOf<Long>()
+    private val seenExpirationModalKeys = mutableSetOf<String>()
+    private val seenFailoverTransitions = mutableSetOf<String>()
     private var appContext: Context? = null
 
     var currentScreen by mutableStateOf(AppScreen.HOME)
@@ -180,6 +183,7 @@ class UnitvViewModel(
                         playlistsError = "Acesso indisponível para este aparelho."
                     } else {
                         val service = backend ?: return@withLock
+                        runCatching { service.heartbeat(macAddress) }
                         visualConfig = runCatching { service.fetchVisualConfig(macAddress) }.getOrDefault(visualConfig)
                         val panelSources = service.fetchSources(macAddress)
                         val sources = if (panelSources.isNotEmpty()) {
@@ -208,7 +212,6 @@ class UnitvViewModel(
                             catalogReady = false
                             catalogLoading = false
                         }
-                        service.heartbeat(macAddress)
                         syncNotificationsAndCommands()
                     }
                 }
@@ -245,14 +248,14 @@ class UnitvViewModel(
 
     private suspend fun syncNotificationsAndCommands() {
         val service = backend ?: return
-        val notifications = service.listNotifications(macAddress)
-        backendNotifications = notifications
-        notifications.filter { it.id !in seenNotificationIds }.forEach { notification ->
+        val sync = service.listNotifications(macAddress)
+        backendNotifications = sync.notifications
+        sync.notifications.filter { it.id !in seenNotificationIds }.forEach { notification ->
             seenNotificationIds += notification.id
             val appNotification = AppNotification(
                 id = "panel-${notification.id}",
-                title = notification.title.ifBlank { "Aviso do painel" },
-                message = notification.message,
+                title = friendlyBackendMessage(notification.title.ifBlank { "Aviso" }),
+                message = friendlyBackendMessage(notification.message),
                 source = NotificationSource.PANEL
             )
             val wasNew = addAppNotification(appNotification)
@@ -260,7 +263,35 @@ class UnitvViewModel(
             runCatching { service.acknowledgeNotification(macAddress, notification.id) }
         }
 
-        val command = service.remoteCommands(macAddress).firstOrNull() ?: return
+        val expiration = sync.expiration
+        if (expiration.showModal && expiration.modalKey.isNotBlank() && seenExpirationModalKeys.add(expiration.modalKey)) {
+            val title = friendlyBackendMessage(expiration.title.ifBlank { "Aviso de vencimento" })
+            val message = friendlyBackendMessage(expiration.message.ifBlank { "Sua assinatura está próxima do vencimento." })
+            val wasNew = addAppNotification(AppNotification("expiration-${expiration.modalKey}", title, message, NotificationSource.PANEL))
+            if (wasNew) notice = "$title: $message"
+        }
+
+        val failover = sync.failover
+        if (failover.playlistSyncRequired) {
+            val transition = failover.transitionId.ifBlank { "${failover.state}-${failover.playlistSyncMessage}" }
+            if (seenFailoverTransitions.add(transition)) {
+                val message = friendlyBackendMessage(
+                    failover.playlistSyncMessage.ifBlank {
+                        "A lista principal apresentou instabilidade. A conexão será sincronizada automaticamente."
+                    }
+                )
+                val wasNew = addAppNotification(AppNotification("failover-$transition", "Atualização da lista", message, NotificationSource.PANEL))
+                if (wasNew) notice = message
+            }
+            val loaded = service.fetchSources(macAddress)
+            if (loaded.isNotEmpty()) {
+                playlists = loaded
+                selectFirstPlaylistIfNeeded()
+                loadSelectedCatalogNow()
+            }
+        }
+
+        val command = service.remoteCommands(macAddress).firstOrNull { !isExpired(it.expiresAt) } ?: return
         val result = runCatching { executeRemoteCommand(command) }
         val status = if (result.isSuccess) "executed" else "failed"
         val message = result.getOrElse { "Não foi possível concluir o comando." }
@@ -271,24 +302,31 @@ class UnitvViewModel(
         return when (command.command) {
             "refresh_playlist", "switch_playlist", "sync_access" -> {
                 val loaded = backend?.fetchSources(macAddress).orEmpty()
+                if (loaded.isEmpty()) error("Nenhuma lista disponível")
                 playlists = loaded
                 selectFirstPlaylistIfNeeded()
+                loadSelectedCatalogNow()
                 "Lista atualizada"
             }
             "show_message" -> {
                 if (command.payload.isNotBlank()) {
                     val appNotification = AppNotification(
                         id = "command-${command.id}",
-                        title = "Aviso do painel",
-                        message = command.payload,
+                        title = "Aviso importante",
+                        message = friendlyBackendMessage(command.payload),
                         source = NotificationSource.PANEL
                     )
-                    addAppNotification(appNotification)
-                    notice = command.payload
+                    val wasNew = addAppNotification(appNotification)
+                    if (wasNew) notice = friendlyBackendMessage(command.payload)
                 }
                 "Mensagem exibida"
             }
-            "restart_player" -> "Player reiniciado"
+            "restart_player" -> {
+                playingUrl = ""
+                playingTitle = ""
+                currentScreen = AppScreen.HOME
+                "Player reiniciado"
+            }
             "update_dns" -> "Configuração de rede recebida"
             else -> error("Comando não suportado")
         }
@@ -607,6 +645,11 @@ class UnitvViewModel(
         playingTitle = title
         playingUrl = url
         currentScreen = AppScreen.PLAYER
+        backend?.let { service ->
+            viewModelScope.launch(Dispatchers.IO) {
+                runCatching { service.heartbeat(macAddress, title) }
+            }
+        }
     }
 
     fun closePlayer() {
@@ -646,6 +689,19 @@ class UnitvViewModel(
         notice = "Sessão encerrada."
         currentScreen = AppScreen.HOME
         selectedSection = AppSection.HOME
+    }
+
+    private fun isExpired(value: String): Boolean {
+        if (value.isBlank()) return false
+        return runCatching { Instant.parse(value).isBefore(Instant.now()) }.getOrDefault(false)
+    }
+
+    private fun friendlyBackendMessage(value: String): String {
+        val cleaned = value.replace(Regex("<[^>]*>"), " ")
+            .replace(Regex("(?i)\\b(painel|modal|monitor de listas)\\b"), "serviço")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+        return cleaned.ifBlank { "Há uma atualização importante disponível." }
     }
 
     private fun allCatalogItems(snapshot: CatalogSnapshot): List<CatalogItem> =

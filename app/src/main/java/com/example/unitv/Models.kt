@@ -108,6 +108,28 @@ data class BackendNotification(
     val status: String
 )
 
+data class ExpirationNotice(
+    val showModal: Boolean = false,
+    val modalKey: String = "",
+    val title: String = "",
+    val message: String = "",
+    val daysRemaining: Int? = null
+)
+
+data class FailoverState(
+    val active: Boolean = false,
+    val state: String = "",
+    val playlistSyncRequired: Boolean = false,
+    val playlistSyncMessage: String = "",
+    val transitionId: String = ""
+)
+
+data class BackendSyncSnapshot(
+    val notifications: List<BackendNotification> = emptyList(),
+    val expiration: ExpirationNotice = ExpirationNotice(),
+    val failover: FailoverState = FailoverState()
+)
+
 enum class NotificationSource {
     PANEL,
     CATALOG
@@ -139,6 +161,7 @@ data class VisualConfig(
     val liveIconUrl: String = "",
     val moviesIconUrl: String = "",
     val seriesIconUrl: String = "",
+    val serverApiUrl: String = "",
     val updateUrl: String = "",
     val updateVersion: String = ""
 )
