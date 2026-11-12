@@ -13,6 +13,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.util.concurrent.atomic.AtomicReference
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -39,6 +40,13 @@ class UnitvViewModel(
     private val seenExpirationModalKeys = mutableSetOf<String>()
     private val seenFailoverTransitions = mutableSetOf<String>()
     private var appContext: Context? = null
+
+    /** Ordem remota que veio junto com um heartbeat fora do ciclo normal; executada no próximo passo do ciclo. */
+    private val queuedCommand = AtomicReference<RemoteCommand?>(null)
+    private var playbackErrorCount = 0
+    private var firstPlaybackErrorAt = 0L
+    private var lastFailureReportAt = 0L
+    @Volatile private var failureInFlight = false
 
     var currentScreen by mutableStateOf(AppScreen.HOME)
         private set
@@ -183,7 +191,7 @@ class UnitvViewModel(
                         playlistsError = "Acesso indisponível para este aparelho."
                     } else {
                         val service = backend ?: return@withLock
-                        runCatching { service.heartbeat(macAddress) }
+                        sendHeartbeat()
                         visualConfig = runCatching { service.fetchVisualConfig(macAddress) }.getOrDefault(visualConfig)
                         val panelSources = service.fetchSources(macAddress)
                         val sources = if (panelSources.isNotEmpty()) {
@@ -246,6 +254,27 @@ class UnitvViewModel(
         }
     }
 
+    /** O que o painel mostra em "Assistindo": o título só enquanto o player está aberto; senão limpa (__idle__). */
+    private fun currentContent(): String? =
+        if (currentScreen == AppScreen.PLAYER && playingTitle.isNotBlank()) playingTitle else null
+
+    /** Manda o heartbeat agora e guarda a ordem remota que o painel tenha entregue junto. */
+    private suspend fun sendHeartbeat(): Boolean {
+        val service = backend ?: return false
+        if (deviceId.isBlank()) return false
+        val result = runCatching { service.heartbeat(macAddress, currentContent()) }.getOrNull() ?: return false
+        result.command?.let { queuedCommand.set(it) }
+        return result.command != null
+    }
+
+    /** Heartbeat imediato quando o conteúdo muda (abrir/fechar o player), além do ciclo de 60 s. */
+    private fun pushHeartbeatNow() {
+        if (backend == null || deviceId.isBlank()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            if (sendHeartbeat()) refreshBackendOnce()
+        }
+    }
+
     private suspend fun syncNotificationsAndCommands() {
         val service = backend ?: return
         val sync = service.listNotifications(macAddress)
@@ -286,12 +315,16 @@ class UnitvViewModel(
             val loaded = service.fetchSources(macAddress)
             if (loaded.isNotEmpty()) {
                 playlists = loaded
+                // O painel diz qual lista está valendo (reserva ou principal restaurada): o app acompanha.
+                loaded.firstOrNull { it.number == failover.activeListNumber }?.let { selectedPlaylistId = it.id }
                 selectFirstPlaylistIfNeeded()
                 loadSelectedCatalogNow()
             }
         }
 
-        val command = service.remoteCommands(macAddress).firstOrNull { !isExpired(it.expiresAt) } ?: return
+        val command = queuedCommand.getAndSet(null)?.takeIf { !isExpired(it.expiresAt) }
+            ?: service.remoteCommands(macAddress).firstOrNull { !isExpired(it.expiresAt) }
+            ?: return
         val result = runCatching { executeRemoteCommand(command) }
         val status = if (result.isSuccess) "executed" else "failed"
         val message = result.getOrElse { "Não foi possível concluir o comando." }
@@ -299,8 +332,21 @@ class UnitvViewModel(
     }
 
     private suspend fun executeRemoteCommand(command: RemoteCommand): String {
+        val payload = runCatching { JSONObject(command.payload) }.getOrDefault(JSONObject())
         return when (command.command) {
-            "refresh_playlist", "switch_playlist", "sync_access" -> {
+            "switch_playlist" -> {
+                val wanted = payload.optInt("listIndex", payload.optInt("list_index", 0))
+                val loaded = backend?.fetchSources(macAddress).orEmpty()
+                if (loaded.isEmpty()) error("Nenhuma lista disponível")
+                val target = loaded.firstOrNull { it.number == wanted } ?: error("Lista $wanted inexistente neste aparelho")
+                playlists = loaded
+                selectedPlaylistId = target.id
+                selectFirstPlaylistIfNeeded()
+                closePlayerToHome()
+                loadSelectedCatalogNow()
+                "Lista ${target.number} ativada"
+            }
+            "refresh_playlist", "sync_access", "update_dns" -> {
                 val loaded = backend?.fetchSources(macAddress).orEmpty()
                 if (loaded.isEmpty()) error("Nenhuma lista disponível")
                 playlists = loaded
@@ -309,38 +355,75 @@ class UnitvViewModel(
                 "Lista atualizada"
             }
             "show_message" -> {
-                if (command.payload.isNotBlank()) {
-                    val appNotification = AppNotification(
-                        id = "command-${command.id}",
-                        title = "Aviso importante",
-                        message = friendlyBackendMessage(command.payload),
-                        source = NotificationSource.PANEL
-                    )
-                    val wasNew = addAppNotification(appNotification)
-                    if (wasNew) notice = friendlyBackendMessage(command.payload)
+                val text = payload.optString("message").ifBlank {
+                    if (command.payload.trimStart().startsWith("{")) "" else command.payload
                 }
+                if (text.isBlank()) error("Mensagem vazia")
+                val title = friendlyBackendMessage(payload.optString("title").ifBlank { "Aviso importante" })
+                val appNotification = AppNotification(
+                    id = "command-${command.id}",
+                    title = title,
+                    message = friendlyBackendMessage(text),
+                    source = NotificationSource.PANEL
+                )
+                val wasNew = addAppNotification(appNotification)
+                if (wasNew) notice = friendlyBackendMessage(text)
                 "Mensagem exibida"
             }
             "restart_player" -> {
-                playingUrl = ""
-                playingTitle = ""
-                currentScreen = AppScreen.HOME
+                closePlayerToHome()
                 "Player reiniciado"
             }
-            "update_dns" -> "Configuração de rede recebida"
             else -> error("Comando não suportado")
         }
     }
 
-    fun reportPlaybackFailure() {
-        val activeNumber = selectedPlaylist?.number ?: 1
+    private fun closePlayerToHome() {
+        playingUrl = ""
+        playingTitle = ""
+        currentScreen = AppScreen.HOME
+    }
+
+    /**
+     * Chamado quando o player acusa erro. Dois erros em 45 s avisam o painel (no máximo 1 aviso a cada 30 s);
+     * o painel troca a DNS da lista ou ativa a lista reserva, e o app acompanha.
+     */
+    fun onPlayerError() {
         val service = backend ?: return
-        viewModelScope.launch(Dispatchers.IO) {
-            runCatching { service.reportPlaybackFailure(macAddress, activeNumber) }
-                .onSuccess { switchApplied ->
-                    if (switchApplied) refreshBackend()
-                }
+        val now = System.currentTimeMillis()
+        if (now - firstPlaybackErrorAt > 45_000L) {
+            firstPlaybackErrorAt = now
+            playbackErrorCount = 0
         }
+        playbackErrorCount++
+        if (playbackErrorCount < 2 || failureInFlight || now - lastFailureReportAt < 30_000L) return
+        lastFailureReportAt = now
+        failureInFlight = true
+        val activeNumber = selectedPlaylist?.number ?: 1
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val result = runCatching { service.reportPlaybackFailure(macAddress, activeNumber) }.getOrNull()
+                if (result != null) applyPlaybackFailureResult(service, result)
+            } finally {
+                failureInFlight = false
+            }
+        }
+    }
+
+    private suspend fun applyPlaybackFailureResult(service: RenciaBackend, result: PlaybackFailureResult) {
+        if (!result.switchApplied && !result.dnsFailoverApplied && !result.retryCurrentPlaylist) return
+        val loaded = runCatching { service.fetchSources(macAddress) }.getOrDefault(emptyList())
+        if (loaded.isEmpty()) return
+        playlists = loaded
+        if (result.switchApplied && result.listNumber > 0) {
+            loaded.firstOrNull { it.number == result.listNumber }?.let { selectedPlaylistId = it.id }
+            notice = "A lista reserva foi ativada automaticamente."
+        } else {
+            notice = "Atualizamos a conexão da sua lista."
+        }
+        selectFirstPlaylistIfNeeded()
+        closePlayerToHome()
+        loadSelectedCatalogNow()
     }
 
     private fun loadSelectedCatalog() {
@@ -569,6 +652,7 @@ class UnitvViewModel(
             AppSection.SPORTS -> AppScreen.SPORTS
             AppSection.PROFILE -> AppScreen.PROFILE
         }
+        pushHeartbeatNow()
     }
 
     fun openVod(item: VodItem) { selectedVod = item; currentScreen = AppScreen.VOD_DETAILS }
@@ -645,11 +729,8 @@ class UnitvViewModel(
         playingTitle = title
         playingUrl = url
         currentScreen = AppScreen.PLAYER
-        backend?.let { service ->
-            viewModelScope.launch(Dispatchers.IO) {
-                runCatching { service.heartbeat(macAddress, title) }
-            }
-        }
+        playbackErrorCount = 0
+        pushHeartbeatNow()
     }
 
     fun closePlayer() {
@@ -658,6 +739,7 @@ class UnitvViewModel(
             selectedSection == AppSection.LIVE -> AppScreen.LIVE
             else -> AppScreen.HOME
         }
+        pushHeartbeatNow()
     }
 
     fun selectCategory(category: String) {
@@ -774,7 +856,7 @@ class UnitvViewModel(
     fun openHistory() { currentScreen = AppScreen.HISTORY }
     fun openFilters() { currentScreen = AppScreen.FILTERS }
     fun openHelp() { currentScreen = AppScreen.HELP }
-    fun backHome() { currentScreen = AppScreen.HOME; selectedSection = AppSection.HOME }
+    fun backHome() { currentScreen = AppScreen.HOME; selectedSection = AppSection.HOME; pushHeartbeatNow() }
     fun openAccountScreen(screen: AppScreen) {
         if (screen == AppScreen.ADULT && !parentalUnlocked) {
             requestAdultAccess()

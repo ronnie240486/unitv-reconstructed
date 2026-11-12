@@ -121,6 +121,24 @@ data class FailoverState(
     val state: String = "",
     val playlistSyncRequired: Boolean = false,
     val playlistSyncMessage: String = "",
+    val transitionId: String = "",
+    /** Número (1, 2, 3...) da lista que o painel colocou em uso para este aparelho; 0 = não informado. */
+    val activeListNumber: Int = 0
+)
+
+/** Resposta do heartbeat: o painel pode entregar uma ordem remota junto com ela. */
+data class HeartbeatResult(
+    val success: Boolean = false,
+    val command: RemoteCommand? = null
+)
+
+/** Resposta do aviso de falha de reprodução. */
+data class PlaybackFailureResult(
+    val switchApplied: Boolean = false,
+    val dnsFailoverApplied: Boolean = false,
+    val retryCurrentPlaylist: Boolean = false,
+    /** Lista (1, 2, 3...) para a qual o painel trocou; 0 = não informado. */
+    val listNumber: Int = 0,
     val transitionId: String = ""
 )
 

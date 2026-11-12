@@ -830,6 +830,7 @@ private fun PlayerScreen(vm: UnitvViewModel) {
             addListener(object : Player.Listener {
                 override fun onPlayerError(error: PlaybackException) {
                     playbackError = "Não foi possível reproduzir este conteúdo. Verifique a URL ou o acesso do servidor."
+                    vm.onPlayerError()
                 }
             })
             prepare()

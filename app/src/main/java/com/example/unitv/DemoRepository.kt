@@ -60,7 +60,11 @@ class DemoPlaylistRepository : PlaylistRepository {
 
 /** Configuração da integração definida pelo guia do backend Rencia. */
 data class ApiConfig(
-    val baseUrl: String = "https://renciaapp.manus.space",
+    val baseUrl: String = "https://renciaapp-production.up.railway.app",
+    /** Reserva: só é usada quando o endereço principal não responde (erro de rede, 5xx ou resposta que não é do painel). */
+    val fallbackBaseUrl: String = "https://renciaapp.manus.space",
+    /** Identificação deste app no painel (parâmetro app_id do heartbeat e dos comandos). */
+    val appId: String = "prestige",
     val updateUrl: String = "",
     val appVersion: String = "0.2.0-prestigie",
     val deviceType: String = "prestigie",

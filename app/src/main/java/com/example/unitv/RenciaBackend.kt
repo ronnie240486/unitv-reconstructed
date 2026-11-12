@@ -8,11 +8,24 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
+/** Sentinela que limpa o "Assistindo" no painel (omitir current_content mantém o último conteúdo). */
+const val HEARTBEAT_IDLE_SENTINEL = "__idle__"
+
+/** Erro HTTP do painel. 4xx é uma resposta de verdade (não adianta tentar o endereço reserva). */
+class PanelHttpException(val code: Int) : Exception("Backend indisponível (HTTP $code)")
+
 class RenciaBackend(private val config: ApiConfig) {
-    private val baseUrl = config.baseUrl.trimEnd('/')
+    /** Endereço principal (Railway) primeiro; o antigo (Manus) só como reserva. */
+    private val bases: List<String> = listOf(config.baseUrl, config.fallbackBaseUrl)
+        .map { it.trim().trimEnd('/') }
+        .filter { it.isNotBlank() }
+        .distinct()
+
+    @Volatile
+    private var sendAppId = config.appId.isNotBlank()
 
     init {
-        require(baseUrl.startsWith("https://")) { "O backend Rencia deve usar HTTPS." }
+        require(bases.isNotEmpty() && bases.all { it.startsWith("https://") }) { "O backend Rencia deve usar HTTPS." }
     }
 
     suspend fun checkDevice(mac: String): DeviceAccess = withContext(Dispatchers.IO) {
@@ -76,12 +89,17 @@ class RenciaBackend(private val config: ApiConfig) {
         )
     }
 
-    suspend fun heartbeat(mac: String, currentContent: String? = null) = withContext(Dispatchers.IO) {
-        val query = buildMap {
-            put("mac", mac)
-            if (!currentContent.isNullOrBlank()) put("current_content", currentContent)
-        }
-        getJson("/api/v5/heartbeat", query)
+    /**
+     * Heartbeat: [currentContent] vazio manda a sentinela __idle__ (limpa o "Assistindo").
+     * A resposta pode trazer uma ordem remota já reservada para este aparelho.
+     */
+    suspend fun heartbeat(mac: String, currentContent: String? = null): HeartbeatResult = withContext(Dispatchers.IO) {
+        val content = currentContent?.trim().orEmpty().ifBlank { HEARTBEAT_IDLE_SENTINEL }
+        val json = getJsonWithApp("/api/v5/heartbeat", mapOf("mac" to mac, "current_content" to content))
+        HeartbeatResult(
+            success = json.optBooleanFlexible("success"),
+            command = parseCommand(json.optJSONObject("command"))
+        )
     }
 
     suspend fun listNotifications(mac: String): BackendSyncSnapshot = withContext(Dispatchers.IO) {
@@ -92,6 +110,7 @@ class RenciaBackend(private val config: ApiConfig) {
                 val item = array.optJSONObject(index) ?: continue
                 val message = item.optString("message").trim()
                 if (message.isBlank()) continue
+                if (item.optBooleanFlexible("acknowledged")) continue
                 add(
                     BackendNotification(
                         id = item.optLong("id"),
@@ -117,20 +136,21 @@ class RenciaBackend(private val config: ApiConfig) {
             state = json.optString("failover_state"),
             playlistSyncRequired = json.optBooleanFlexible("playlist_sync_required"),
             playlistSyncMessage = json.optString("playlist_sync_message"),
-            transitionId = json.optString("failover_transition_id")
+            transitionId = json.optString("failover_transition_id"),
+            activeListNumber = json.optIntFlexible("active_list_number") ?: 0
         )
         BackendSyncSnapshot(notifications, expiration, failover)
     }
 
+    /** O painel entrega UMA ordem por vez, no campo "command" (objeto), não em lista. */
     suspend fun remoteCommands(mac: String): List<RemoteCommand> = withContext(Dispatchers.IO) {
-        val json = getJson("/api/v5/remote-commands", mapOf("mac" to mac))
+        val json = getJsonWithApp("/api/v5/remote-commands", mapOf("mac" to mac))
+        val single = parseCommand(json.optJSONObject("command"))
+        if (single != null) return@withContext listOf(single)
         val array = json.optJSONArray("commands") ?: json.optJSONArray("data") ?: JSONArray()
         buildList {
             for (index in 0 until array.length()) {
-                val item = array.optJSONObject(index) ?: continue
-                val command = item.optString("command").ifBlank { item.optString("type") }
-                if (command.isBlank()) continue
-                add(RemoteCommand(item.optLong("id"), command, item.optString("payload"), item.optString("expires_at").ifBlank { item.optString("expiresAt") }))
+                parseCommand(array.optJSONObject(index))?.let { add(it) }
             }
         }
     }
@@ -148,63 +168,120 @@ class RenciaBackend(private val config: ApiConfig) {
             put("command_id", commandId)
             put("status", status)
             put("result_message", resultMessage)
+            if (sendAppId) put("app", config.appId)
         })
     }
 
-    suspend fun reportPlaybackFailure(mac: String, activeListNumber: Int): Boolean = withContext(Dispatchers.IO) {
+    suspend fun reportPlaybackFailure(mac: String, activeListNumber: Int): PlaybackFailureResult = withContext(Dispatchers.IO) {
         val response = postJson("/api/v5/playback-failure", JSONObject().apply {
             put("mac", mac)
             put("active_list_number", activeListNumber)
         })
-        response.optBooleanFlexible("switch_applied")
+        PlaybackFailureResult(
+            switchApplied = response.optBooleanFlexible("switch_applied"),
+            dnsFailoverApplied = response.optBooleanFlexible("dns_failover_applied"),
+            retryCurrentPlaylist = response.optBooleanFlexible("retry_current_playlist"),
+            listNumber = response.optIntFlexible("list_index")
+                ?: response.optIntFlexible("next_playlist_number")
+                ?: 0,
+            transitionId = response.optString("failover_transition_id")
+        )
     }
 
-    private fun getJson(path: String, query: Map<String, String>): JSONObject {
-        val endpoint = buildUrl(path, query)
-        val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
-            requestMethod = "GET"
+    // ------------------------------------------------------------------ HTTP (Railway primeiro, Manus de reserva)
+
+    private class PanelResponse(val code: Int, val body: String)
+
+    private fun parseCommand(item: JSONObject?): RemoteCommand? {
+        if (item == null) return null
+        val id = item.optLong("id")
+        val type = item.optString("type").ifBlank { item.optString("command") }
+        if (id <= 0L || type.isBlank()) return null
+        val payload = item.opt("payload")
+        val payloadText = when (payload) {
+            null, JSONObject.NULL -> ""
+            is JSONObject -> payload.toString()
+            else -> payload.toString()
+        }
+        return RemoteCommand(
+            id = id,
+            command = type,
+            payload = payloadText,
+            expiresAt = item.optString("expires_at").ifBlank { item.optString("expiresAt") }
+        )
+    }
+
+    /** GET que manda app_id; se o painel disser que o MAC não é deste app (403), repete sem app_id. */
+    private fun getJsonWithApp(path: String, query: Map<String, String>): JSONObject {
+        if (sendAppId) {
+            val response = execute("GET", path, query + ("app_id" to config.appId), null)
+            if (response.code != 403) return toJson(response)
+            sendAppId = false
+        }
+        return toJson(execute("GET", path, query, null))
+    }
+
+    private fun getJson(path: String, query: Map<String, String>): JSONObject =
+        toJson(execute("GET", path, query, null))
+
+    private fun postJson(path: String, body: JSONObject): JSONObject =
+        toJson(execute("POST", path, emptyMap(), body))
+
+    private fun toJson(response: PanelResponse): JSONObject {
+        if (response.code !in 200..299) throw PanelHttpException(response.code)
+        return if (response.body.isBlank()) JSONObject() else JSONObject(response.body)
+    }
+
+    /** Tenta cada endereço; só cai para o próximo em erro de rede, 5xx ou resposta que não é JSON do painel. */
+    private fun execute(method: String, path: String, query: Map<String, String>, body: JSONObject?): PanelResponse {
+        var last: Exception? = null
+        for (base in bases) {
+            try {
+                val response = singleRequest(base, method, path, query, body)
+                if (response.code >= 500) {
+                    last = PanelHttpException(response.code)
+                    continue
+                }
+                if (response.code in 200..299 && response.body.isNotBlank() && !response.body.trimStart().startsWith("{")) {
+                    last = IllegalStateException("Resposta inválida do painel")
+                    continue
+                }
+                return response
+            } catch (error: Exception) {
+                last = error
+            }
+        }
+        throw last ?: IllegalStateException("Painel indisponível")
+    }
+
+    private fun singleRequest(base: String, method: String, path: String, query: Map<String, String>, body: JSONObject?): PanelResponse {
+        val connection = (URL(buildUrl(base, path, query)).openConnection() as HttpURLConnection).apply {
+            requestMethod = method
             connectTimeout = 8000
-            readTimeout = 8000
+            readTimeout = 10000
+            useCaches = false
             setRequestProperty("Accept", "application/json")
+            if (body != null) {
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json")
+            }
         }
         return try {
-            val body = readResponse(connection)
-            JSONObject(body)
+            if (body != null) connection.outputStream.bufferedWriter().use { it.write(body.toString()) }
+            val code = connection.responseCode
+            val stream = if (code in 200..399) connection.inputStream else connection.errorStream
+            val text = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+            PanelResponse(code, text)
         } finally {
             connection.disconnect()
         }
     }
 
-    private fun postJson(path: String, body: JSONObject): JSONObject {
-        val connection = (URL(buildUrl(path, emptyMap())).openConnection() as HttpURLConnection).apply {
-            requestMethod = "POST"
-            connectTimeout = 8000
-            readTimeout = 8000
-            doOutput = true
-            setRequestProperty("Accept", "application/json")
-            setRequestProperty("Content-Type", "application/json")
-        }
-        return try {
-            connection.outputStream.bufferedWriter().use { it.write(body.toString()) }
-            val response = readResponse(connection)
-            if (response.isBlank()) JSONObject() else JSONObject(response)
-        } finally {
-            connection.disconnect()
-        }
-    }
-
-    private fun readResponse(connection: HttpURLConnection): String {
-        val stream = if (connection.responseCode in 200..299) connection.inputStream else connection.errorStream
-        val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
-        if (connection.responseCode !in 200..299) error("Backend indisponível (HTTP ${connection.responseCode})")
-        return body
-    }
-
-    private fun buildUrl(path: String, query: Map<String, String>): String {
+    private fun buildUrl(base: String, path: String, query: Map<String, String>): String {
         val encoded = query.entries.joinToString("&") { (key, value) ->
             "${URLEncoder.encode(key, Charsets.UTF_8.name())}=${URLEncoder.encode(value, Charsets.UTF_8.name())}"
         }
-        return if (encoded.isBlank()) "$baseUrl$path" else "$baseUrl$path?$encoded"
+        return if (encoded.isBlank()) "$base$path" else "$base$path?$encoded"
     }
 }
 
